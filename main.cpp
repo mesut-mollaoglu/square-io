@@ -104,11 +104,6 @@ struct Triangle : Shape
     }
 };
 
-struct Object
-{
-    float velocity;
-};
-
 enum class pShape
 {
     Rect,
@@ -117,8 +112,9 @@ enum class pShape
     Pixel
 };
 
-struct Enemy : Object
+struct Enemy
 {
+    float velocity;
     Shape* shape;
     float health;
     bool remove;
@@ -126,15 +122,17 @@ struct Enemy : Object
     pShape data;
 };
 
-struct Player : Object
+struct Player
 {
+    float velocity;
     Rect rect;
     int health;
     int cooldown;
 };
 
-struct Missile : Object
+struct Missile
 {
+    float velocity;
     Triangle triangle;
     float angle;
     float distance_current;
@@ -187,9 +185,9 @@ struct pData
 auto equilateral = [](Triangle& triangle, float size)
 {
     const float m = 0.577350269f;
-    triangle.cVertices[0] = triangle.vertices[0] = {0, m * size};
-    triangle.cVertices[1] = triangle.vertices[1] = {size, -m * size};
-    triangle.cVertices[2] = triangle.vertices[2] = {-size, -m * size};
+    triangle.cVertices[0] = triangle.vertices[0] = v2f(0.0f, m * size);
+    triangle.cVertices[1] = triangle.vertices[1] = v2f(size * 0.5f, -m * size);
+    triangle.cVertices[2] = triangle.vertices[2] = v2f(-size * 0.5f, -m * size);
 };
 
 struct pSystem
@@ -291,7 +289,7 @@ struct pSystem
                         rect.height = rect.width = p.size;
                         rect.position.x = p.pos_current.x;
                         rect.position.y = p.pos_current.y;
-                        rect.Rotate(p.frame_current);
+                        rect.Rotate(p.velocity);
                         rect.Draw(window, drawMode);
                     }
                     break;
@@ -312,7 +310,7 @@ struct pSystem
                         triangle.position.x = p.pos_current.x;
                         triangle.position.y = p.pos_current.y;
                         equilateral(triangle, p.size);
-                        triangle.Rotate(p.frame_current);
+                        triangle.Rotate(p.velocity);
                         triangle.Draw(window, drawMode);
                     }
                     case pShape::Pixel: 
@@ -345,6 +343,11 @@ enum class GameState
     EndFail
 };
 
+uint32_t enemy_colors[8] = {
+    0xFF820C58, 0xFF7347FE, 0xFF8DD6F6, 0xFFA1308F,
+    0xFF0C1B59, 0xFF0000FF, 0xFFABCFC1, 0xFFD5C6AC
+};
+
 class Game
 {
 private:
@@ -353,6 +356,7 @@ private:
     pSystem ps;
     pData explosion;
     pData kill;
+    pData smoke;
     std::vector<Enemy> enemies;
     std::vector<Missile> missiles;
     std::vector<seed> seeds;
@@ -361,17 +365,24 @@ public:
     inline void Start()
     {
         currentState = GameState::MainMenu;
+        
         srand(time(0));
-        window.Init("Window", 800, 600);
 
-        SpawnEnemy(pShape::Circle, v2f(100));
-        SpawnEnemy(pShape::Rect, v2f(200));
-        SpawnEnemy(pShape::Circle, v2f(500));
-        SpawnEnemy(pShape::Triangle, v2f(600, 100));
+        window.Init("Window", 800, 600);
 
         player = {5.0f, Rect(60, 60, 30, 30, 0xFF00FF00), 20};
 
         ps = pSystem(0, 0);
+
+        smoke.colors.push_back(0xFFd8d8d8);
+        smoke.colors.push_back(0xFFb1b1b1);
+        smoke.colors.push_back(0xFF7e7e7e);
+        smoke.colors.push_back(0xFF474747);
+        smoke.colors.push_back(0xFF1a1a1a);
+        smoke.rect.ex = smoke.rect.sx = 0;
+        smoke.rect.ey = smoke.rect.sy = 0;
+        smoke.speed_max = 1;
+        smoke.speed_min = 0;
 
         explosion.colors.push_back(0xFFd8d8d8);
         explosion.colors.push_back(0xFFb1b1b1);
@@ -383,26 +394,26 @@ public:
         explosion.colors.push_back(0xFF009AFF);
         explosion.colors.push_back(0xFF00CCFF);
         explosion.colors.push_back(0xFF08E8FF);
-        explosion.rect.ey = explosion.rect.ex = 25;
-        explosion.rect.sy = explosion.rect.sx = -25;
+        explosion.rect.ey = explosion.rect.ex = 5.0f;
+        explosion.rect.sy = explosion.rect.sx = -5.0f;
         explosion.angle_min = 0;
         explosion.angle_max = 360;
-        explosion.size_min = 4;
-        explosion.size_max = 7;
-        explosion.speed_min = 3;
+        explosion.size_min = 3;
+        explosion.size_max = 6;
+        explosion.speed_min = 4;
         explosion.speed_max = 5;
 
-        kill.colors.push_back(0xFF0000FF);
-        kill.rect.ey = kill.rect.ex = 25;
-        kill.rect.sy = kill.rect.sx = -25;
+        kill.colors.resize(1);
+        kill.rect.ey = kill.rect.ex = 25.0f;
+        kill.rect.sy = kill.rect.sx = -25.0f;
         kill.angle_min = 0;
         kill.angle_max = 360;
         kill.size_min = 6;
-        kill.size_max = 8;
+        kill.size_max = 7;
         kill.speed_min = 2;
         kill.speed_max = 4;
 
-        ps.bPause = true;
+        ps.bPause = false;
 
         player.cooldown = 0;
 
@@ -410,30 +421,37 @@ public:
     }
     inline void Restart()
     {
-        seeds.clear();
+        for(auto& enemy : enemies)
+        {
+            delete enemy.shape;
+            enemy.shape = nullptr;
+        }
         enemies.clear();
+        seeds.clear();
+        missiles.clear();
         ps.particles.clear();
         const int size = seeds.size();
         for(int i = 0; i < 50 - size; i++)
         {
             seeds.push_back({
                 {
-                    rand(0.0f, (float)window.width),
-                    rand(0.0f, (float)window.height)
+                    rand(10.0f, window.width - 10.0f),
+                    rand(10.0f, window.height - 10.0f)
                 }, false
             });
         }
         player.cooldown = 0;
-        player.health = 10.0f;
+        player.health = 20.0f;
         player.rect.width = 30;
         player.rect.height = 30;
+        player.velocity = 5.0f;
         player.rect.position.x = 60.0f;
         player.rect.position.y = 60.0f;
     }
     inline void SpawnMissile(const v2f start, const v2f destination, uint32_t color, float distance_max)
     {
         Triangle tri;
-        equilateral(tri, 10);
+        equilateral(tri, 20);
         tri.color = color;
         v2f dist = destination - start;
         tri.position = start;
@@ -445,16 +463,15 @@ public:
     inline void ExplodeMissile(Missile& m)
     {
         if(m.remove) return;
-        ps.position.x = m.triangle.position.x;
-        ps.position.y = m.triangle.position.y;
-        ps.Generate(explosion, 25, pMode::Normal,
+        ps.position = m.triangle.position;
+        ps.Generate(explosion, 18, pMode::Normal,
         pShape::Circle, pBehaviour::Directional,
-        1.2f, 75.0f, 60);
-        ps.bPause = false;
+        -1.8f, 80.0f, 40);
         m.remove = true;
     }
     inline void SpawnEnemy(pShape shape, v2f start_pos)
     {
+        uint32_t color = enemy_colors[rand(0, 8)];
         enemies.push_back({
             6.0f, nullptr,
             20.0f, false, 
@@ -464,23 +481,18 @@ public:
         {
             case pShape::Circle:
             {
-                enemies.back().shape = new Circle(start_pos.x, start_pos.y, 10.0f, 0xFF808000);
+                enemies.back().shape = new Circle(start_pos.x, start_pos.y, 10.0f, color);
             }break;
             case pShape::Rect:
             {
-                enemies.back().shape = new Rect(start_pos.x, start_pos.y, 20.0f, 20.0f, 0xFF0000FF);
+                enemies.back().shape = new Rect(start_pos.x, start_pos.y, 20.0f, 20.0f, color);
             }break;
             case pShape::Triangle:
             {
                 const float m = 0.577350269f;
-                enemies.back().shape = new Triangle(
-                    v2f(0, m * 20.0f),
-                    v2f(20.0f, -m * 20.0f), 
-                    v2f(-20.0f, -m * 20.0f),
-                    start_pos, 0xFF23a6f5);
+                enemies.back().shape = new Triangle(v2f(0.0f, m * 20.0f), v2f(10.0f, -m * 20.0f), v2f(-10.0f, -m * 20.0f), start_pos, color);
             }
         };
-        
     }
     inline void UpdateAndDraw(const uint8_t* keystates, const MouseState& mouseState)
     {
@@ -501,7 +513,7 @@ public:
         }
         window.Clear(0xFFFFFFFF);
         window.DrawRect(0xFF00FF00, 300, 300, 500, 500);
-        window.DrawText(DstRect{100, 40, 700, 92}, "Press Enter to Play", 0xFF000000);
+        window.DrawText({100, 40, 700, 92}, "Press Enter to Play!", 0xFF000000);
         window.Present();
     }
     inline void EndSuccess(const uint8_t* keystates)
@@ -527,12 +539,12 @@ public:
         if(keystates[SDL_SCANCODE_ESCAPE]) 
             currentState = GameState::MainMenu;
         window.Clear(0xFFFFFFFF);
-        window.DrawText({250, 40, 550, 92}, "Try Again", 0xFF000000);
+        window.DrawText({250, 40, 550, 92}, "Try Again...", 0xFF000000);
         window.Present();
     }
     inline void GameLoop(const uint8_t* keystates, const MouseState& mouseState)
     {
-        while(enemies.size() < 5)
+        while(enemies.size() < 4)
         {
             SpawnEnemy((pShape)rand(0, 3), 
             {
@@ -562,17 +574,23 @@ public:
 
         for(auto& m : missiles)
         {
+            ps.position = m.triangle.position;
+            ps.Generate(smoke, 6, pMode::Normal, pShape::Pixel,
+            pBehaviour::Directional, 0.0f, 0.0f, 25);
             m.triangle.position.x += cos(m.angle) * m.velocity;
             m.triangle.position.y += sin(m.angle) * m.velocity;
             m.triangle.SetRotation(m.angle - pi * 0.5f);
             m.distance_current += m.velocity;
+            float expRadius = 1.0f;
+
             if(m.distance_current > m.distance_max)
             {
+                expRadius = 2.5f;
                 ExplodeMissile(m);
             }
 
             if(m.triangle.color == 0xFFFF0000 && std::hypot(m.triangle.position.x - player.rect.position.x,
-                m.triangle.position.y - player.rect.position.y) < player.rect.width * 0.6)
+                m.triangle.position.y - player.rect.position.y) < player.rect.width * 0.6 * expRadius)
             {
                 player.health -= 2;
                 ExplodeMissile(m);
@@ -581,7 +599,7 @@ public:
             if(m.triangle.color == 0xFF0000FF)
                 for(auto& enemy : enemies)
                     if(std::hypot(m.triangle.position.x - enemy.shape->position.x,
-                        m.triangle.position.y - enemy.shape->position.y) < 30)
+                        m.triangle.position.y - enemy.shape->position.y) < 30 * expRadius)
                     {
                         enemy.health -= 10;
                         ExplodeMissile(m);
@@ -603,8 +621,8 @@ public:
             
             if(dist <= 400.0f && enemy.cooldown <= 0)
             {
-                SpawnMissile(enemy.shape->position, player.rect.position, 0xFFFF0000, 400.0f);
-                enemy.cooldown = 200;
+                SpawnMissile(enemy.shape->position, player.rect.position, 0xFFFF0000, 350.0f);
+                enemy.cooldown = 150;
             }
                 
             enemy.cooldown--;
@@ -612,10 +630,9 @@ public:
             if(enemy.health <= 0)
             {
                 kill.colors[0] = enemy.shape->color;
-                ps.position.x = enemy.shape->position.x;
-                ps.position.y = enemy.shape->position.y;
-                ps.Generate(kill, 15, pMode::Normal, enemy.data,
-                pBehaviour::Directional, 1.2f, 75.0f, 60);
+                ps.position = enemy.shape->position;
+                ps.Generate(kill, 12, pMode::Normal, enemy.data,
+                pBehaviour::Directional, 0.0f, 70.0f, 65);
                 enemy.remove = true;
                 delete enemy.shape;
                 enemy.shape = nullptr;
@@ -629,8 +646,9 @@ public:
             s.position.y < player.rect.position.y + player.rect.height * 0.5 &&
             s.position.y > player.rect.position.y - player.rect.height * 0.5 && !s.remove)
             {
-                player.rect.width += 4.0f;
-                player.rect.height += 4.0f;
+                player.rect.width += 3.0f;
+                player.rect.height += 3.0f;
+                player.velocity += 0.02f;
                 s.remove = true;
             }
         }
@@ -647,6 +665,9 @@ public:
 
         window.Clear(0xFFFFFF00);
 
+        for(auto& s : seeds)
+            window.DrawCircle(0xFFFF00FF, s.position.x, s.position.y, 3.0f);
+
         ps.Draw(window);
 
         for(auto& enemy : enemies)
@@ -655,12 +676,11 @@ public:
         for(auto& missile : missiles)
             missile.triangle.Draw(window);
 
-        for(auto& s : seeds)
-            window.DrawCircle(0xFF0000FF, s.position.x, s.position.y, 4.0f);
-
         player.rect.Draw(window);
 
         window.DrawText(10, 10, "HEALTH:" + std::to_string(player.health), 2);
+
+        window.DrawText({650, 10, 790, 36}, "SEEDS:" + std::to_string(seeds.size()));
 
         window.Present();
     }
