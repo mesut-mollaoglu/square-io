@@ -348,6 +348,16 @@ uint32_t enemy_colors[8] = {
     0xFF0C1B59, 0xFF0000FF, 0xFFABCFC1, 0xFFD5C6AC
 };
 
+inline void TakeScreenShot(Window& window, const std::string& file)
+{
+    const int w = window.width;
+    const int h = window.height;
+    SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormat(0, w, h, 32, SDL_PIXELFORMAT_ABGR8888);
+    memcpy(surface->pixels, window.pixels, 4*w*h);
+    IMG_SavePNG(surface, file.c_str());
+    SDL_FreeSurface(surface);
+}
+
 class Game
 {
 private:
@@ -361,6 +371,7 @@ private:
     std::vector<Missile> missiles;
     std::vector<seed> seeds;
     GameState currentState;
+    int ss_count = 0;
 public:
     inline void Start()
     {
@@ -374,21 +385,22 @@ public:
 
         ps = pSystem(0, 0);
 
-        smoke.colors.push_back(0xFFd8d8d8);
-        smoke.colors.push_back(0xFFb1b1b1);
-        smoke.colors.push_back(0xFF7e7e7e);
+        smoke.colors.push_back(0xFFD8D8D8);
+        smoke.colors.push_back(0xFFB1B1B1);
+        smoke.colors.push_back(0xFF7E7E7E);
         smoke.colors.push_back(0xFF474747);
-        smoke.colors.push_back(0xFF1a1a1a);
+        smoke.colors.push_back(0xFF1A1A1A);
+        smoke.colors.push_back(0xFFFFFFFF);
         smoke.rect.ex = smoke.rect.sx = 0;
         smoke.rect.ey = smoke.rect.sy = 0;
         smoke.speed_max = 1;
         smoke.speed_min = 0;
 
-        explosion.colors.push_back(0xFFd8d8d8);
-        explosion.colors.push_back(0xFFb1b1b1);
-        explosion.colors.push_back(0xFF7e7e7e);
+        explosion.colors.push_back(0xFFD8D8D8);
+        explosion.colors.push_back(0xFFB1B1B1);
+        explosion.colors.push_back(0xFF7E7E7E);
         explosion.colors.push_back(0xFF474747);
-        explosion.colors.push_back(0xFF1a1a1a);
+        explosion.colors.push_back(0xFF1A1A1A);
         explosion.colors.push_back(0xFF0000FF);
         explosion.colors.push_back(0xFF005AFF);
         explosion.colors.push_back(0xFF009AFF);
@@ -482,16 +494,19 @@ public:
             case pShape::Circle:
             {
                 enemies.back().shape = new Circle(start_pos.x, start_pos.y, 10.0f, color);
-            }break;
+            }
+            break;
             case pShape::Rect:
             {
                 enemies.back().shape = new Rect(start_pos.x, start_pos.y, 20.0f, 20.0f, color);
-            }break;
+            }
+            break;
             case pShape::Triangle:
             {
                 const float m = 0.577350269f;
                 enemies.back().shape = new Triangle(v2f(0.0f, m * 20.0f), v2f(10.0f, -m * 20.0f), v2f(-10.0f, -m * 20.0f), start_pos, color);
             }
+            break;
         };
     }
     inline void UpdateAndDraw(const uint8_t* keystates, const MouseState& mouseState)
@@ -576,7 +591,7 @@ public:
         {
             ps.position = m.triangle.position;
             ps.Generate(smoke, 6, pMode::Normal, pShape::Pixel,
-            pBehaviour::Directional, 0.0f, 0.0f, 25);
+            pBehaviour::Directional, 0.0f, 0.0f, 10);
             m.triangle.position.x += cos(m.angle) * m.velocity;
             m.triangle.position.y += sin(m.angle) * m.velocity;
             m.triangle.SetRotation(m.angle - pi * 0.5f);
@@ -702,6 +717,8 @@ public:
             MouseState state;
             const uint8_t* keystates = SDL_GetKeyboardState(NULL);
             state.buttons = SDL_GetMouseState(&state.x, &state.y);
+            if(keystates[SDL_SCANCODE_P])
+                TakeScreenShot(window, "screenshots\\image_" + std::to_string(ss_count) + ".png");
             UpdateAndDraw(keystates, state);
         }
     }
