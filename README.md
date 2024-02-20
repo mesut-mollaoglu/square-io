@@ -1,6 +1,6 @@
-#Controls:
-[Left Mouse Button] - Shoot
-[W-A-S-D] - Move
+#Controls:<br/>
+[Left Mouse Button] - Shoot<br/>
+[W-A-S-D] - Move<br/>
 
 ![image_1](images/image_1.png)
 ![image_2](images/image_2.png)
