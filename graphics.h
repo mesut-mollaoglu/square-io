@@ -31,7 +31,7 @@ inline float string_size_x(const std::string& text, float size)
 inline float string_size_y(const std::string& text, float size)
 {
     int count = std::count(text.begin(), text.end(), '\n');
-    return count * size * (FONT_HEIGHT + 1) + FONT_HEIGHT;
+    return (count * (FONT_HEIGHT + 1) + FONT_HEIGHT) * size;
 }
 
 enum class DrawMode
@@ -323,9 +323,9 @@ void Window::DrawRect(uint32_t color, int sx, int sy, int ex, int ey, DrawMode d
 void Window::DrawRectOutline(uint32_t color, int sx, int sy, int ex, int ey, DrawMode drawMode)
 {
     DrawLine(color, sx, sy, sx, ey, drawMode);
-    DrawLine(color, sx, sy, ex, sy, drawMode);
-    DrawLine(color, ex, ey, sx, ey, drawMode);
-    DrawLine(color, ex, ey, ex, sy, drawMode);
+	DrawLine(color, sx, sy, ex, sy, drawMode);
+	DrawLine(color, ex, ey, sx, ey, drawMode);
+	DrawLine(color, ex, ey, ex, sy, drawMode);
 }
 
 void Window::DrawRotatedRectOutline(uint32_t color, int sx, int sy, int ex, int ey, float rotation, DrawMode drawMode)
@@ -533,18 +533,12 @@ void Window::DrawCharacter(int x, int y, const char c, float size, uint32_t colo
 
 void Window::DrawText(int x, int y, const std::string& text, float size, uint32_t color, DrawMode drawMode)
 {
-    float sx = 0, sy = 0;
-    for(auto& c : text)
-    {
-        DrawCharacter(x + (int)sx, y + (int)sy, c, size, color, drawMode);
-        if(c == '\n')
-        {
-            sy += (FONT_HEIGHT + 1) * size;
-            sx = 0;
-        }
-        else
-            sx += char_size(c, size) + 1;
-    }
+    rect dst;
+    dst.sx = (float)x;
+    dst.sy = (float)y;
+    dst.ex = dst.sx + string_size_x(text, size);
+    dst.ey = dst.sy + string_size_y(text, size);
+    DrawText(dst, text, color, drawMode);
 }
 
 void Window::DrawCharacter(rect dst, const char c, uint32_t color, DrawMode drawMode)
