@@ -7,31 +7,33 @@ inline float char_size(const char c, float size_x)
 {
     switch(c)
     {
-        case ' ': return 10 * size_x;
-        case '\t': return 18 * size_x;
-        default: return 9 * size_x;
+        case ' ': return (FONT_WIDTH + 2) * size_x;
+        case '\t': return TAB_SPACE * size_x;
+        default: return (FONT_WIDTH + 1) * size_x;
     }
 }
 
 inline float string_size_x(const std::string& text, float size_x)
 {
     float max_size = 0, buff = 0;
-	for (auto &c : text) {
-		if (c == '\n') 
+    for (auto &c : text) 
+    {
+	if (c == '\n') 
         { 
             max_size = std::max(max_size, buff); 
             buff = 0;
         }
-		else 
-            buff += char_size(c, size_x);
-	}
-	max_size = std::max(max_size, buff);
-	return max_size;
+	else 
+    	    buff += char_size(c, size_x);
+    }
+    max_size = std::max(max_size, buff);
+    return max_size;
 }
 
 inline float string_size_y(const std::string& text, float size_y)
 {
-    return std::count(text.begin(), text.end(), '\n') * size_y * (FONT_HEIGHT + 1) + FONT_HEIGHT;
+    int count = std::count(text.begin(), text.end(), '\n');
+    return count * size_y * (FONT_HEIGHT + 1) + FONT_HEIGHT;
 }
 
 enum class DrawMode
