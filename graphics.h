@@ -3,40 +3,35 @@
 
 #include "includes.h"
 
-inline void char_size(const char c, float& sx, float& sy, float size_x, float size_y)
+inline float char_size(const char c, float size_x)
 {
     switch(c)
     {
-        case ' ': 
-        {
-            sx += 10 * size_x;
-            return;
-        }
-        case '\n':
-        {
-            sy += 10 * size_y;
-            sx = 0;
-            return;
-        }
-        case '\t':
-        {
-            sx += 18 * size_x;
-            return;
-        }
-        default: 
-        {
-            sx += 9 * size_x;
-            return;
-        }
+        case ' ': return 10 * size_x;
+        case '\t': return 18 * size_x;
+        default: return 9 * size_x;
     }
 }
 
-inline void string_size(const std::string& text, float size_x, float size_y, float& sx, float& sy)
+inline float string_size_x(const std::string& text, float size_x)
 {
-    for(auto& c : text)
-    {
-        char_size(c, sx, sy, size_x, size_y);
-    }
+    float max_size = 0, buff = 0;
+	for (auto &c : text) {
+		if (c == '\n') 
+        { 
+            max_size = std::max(max_size, buff); 
+            buff = 0;
+        }
+		else 
+            buff += char_size(c, size_x);
+	}
+	max_size = std::max(max_size, buff);
+	return max_size;
+}
+
+inline float string_size_y(const std::string& text, float size_y)
+{
+    return std::count(text.begin(), text.end(), '\n') * size_y * (FONT_HEIGHT + 1) + FONT_HEIGHT;
 }
 
 enum class DrawMode
@@ -89,8 +84,12 @@ struct Window
     uint32_t GetPixel(int x, int y, DrawMode drawMode = DrawMode::Normal);
     void DrawLine(uint32_t p, int x0, int y0, int x1, int y1, DrawMode drawMode = DrawMode::Normal);
     void DrawRect(uint32_t p, int sx, int sy, int ex, int ey, DrawMode drawMode = DrawMode::Normal);
+    void DrawRectOutline(uint32_t p, int sx, int sy, int ex, int ey, DrawMode drawMode = DrawMode::Normal);
+    void DrawRotatedRectOutline(uint32_t p, int sx, int sy, int ex, int ey, float rotation, DrawMode drawMode = DrawMode::Normal);
     void DrawCircle(uint32_t p, int cx, int cy, int radius, DrawMode drawMode = DrawMode::Normal);
+    void DrawCircleOutline(uint32_t p, int cx, int cy, int radius, DrawMode drawMode = DrawMode::Normal);
     void DrawTriangle(uint32_t p, int x1, int y1, int x2, int y2, int x3, int y3, DrawMode drawMode = DrawMode::Normal);
+    void DrawTriangleOutline(uint32_t p, int x1, int y1, int x2, int y2, int x3, int y3, DrawMode drawMode = DrawMode::Normal);
     void DrawSprite(Sprite& sprite, Transform& transform, DrawMode drawMode = DrawMode::Normal);
     void DrawSprite(int x, int y, Sprite& sprite, int size = 1, DrawMode drawMode = DrawMode::Normal);
     void DrawSprite(int x, int y, DstRect dst, Sprite& sprite, int size = 1, DrawMode drawMode = DrawMode::Normal);
@@ -108,6 +107,19 @@ struct Window
         SDL_DestroyTexture(surface);
         SDL_Quit();
     }
+};
+
+struct Button
+{
+    Sprite image;
+    v2f position;
+    int size = 1;
+    Button() = default;
+    Button(const std::string& path);
+    bool clicked(int x, int y, bool clicked);
+    bool hover(int x, int y);
+    void render(Window& window, DrawMode drawMode = DrawMode::Normal);
+    ~Button() {}
 };
 
 #endif
@@ -148,7 +160,6 @@ uint32_t Sprite::GetPixel(int x, int y)
 
 void Window::Init(std::string name, int width, int height)
 {
-    SDL_Init(SDL_INIT_EVERYTHING);
     CreateWindow(name, width, height);
     CreateRenderer();
     CreateSurface();
@@ -191,7 +202,7 @@ void Window::Present()
     int pitch;
     void* buffer;
     SDL_LockTexture(surface, NULL, &buffer, &pitch);
-    memcpy(buffer, pixels, sizeof(uint32_t) * width * height);
+    memcpy(buffer, pixels, 4 * width * height);
     SDL_UnlockTexture(surface);
     SDL_RenderClear(renderer);
     SDL_RenderCopy(renderer, surface, NULL, NULL);
@@ -256,11 +267,13 @@ void Window::DrawLine(uint32_t p, int x0, int y0, int x1, int y1, DrawMode drawM
     if(absdx > absdy) 
     {
         int d = absdy * 2 - absdx;
-        for(int i = 0; i < absdx; i++) {
+        for(int i = 0; i < absdx; i++) 
+        {
             x = dx < 0 ? x - 1: x + 1;
-            if(d < 0) {
+            if(d < 0)
                 d = d + 2*absdy;
-            } else {
+            else 
+            {
                 y = dy < 0 ? y - 1 : y + 1;
                 d = d + 2 * (absdy - absdx); 
             }
@@ -294,6 +307,31 @@ void Window::DrawRect(uint32_t p, int sx, int sy, int ex, int ey, DrawMode drawM
             SetPixel(p, x, y, drawMode);
 }
 
+void Window::DrawRectOutline(uint32_t p, int sx, int sy, int ex, int ey, DrawMode drawMode)
+{
+    DrawLine(p, sx, sy, sx, ey, drawMode);
+	DrawLine(p, sx, sy, ex, sy, drawMode);
+	DrawLine(p, ex, ey, sx, ey, drawMode);
+	DrawLine(p, ex, ey, ex, sy, drawMode);
+}
+
+void Window::DrawRotatedRectOutline(uint32_t p, int sx, int sy, int ex, int ey, float rotation, DrawMode drawMode)
+{
+    if(rotation == 0.0f)
+    {
+        DrawRectOutline(p, sx, sy, ex, ey, drawMode);
+        return;
+    }
+    v2f p1 = rotate(rotation, v2f(sx, sy));
+    v2f p2 = rotate(rotation, v2f(sx, ey));
+    v2f p3 = rotate(rotation, v2f(ex, ey));
+    v2f p4 = rotate(rotation, v2f(ex, sy));
+    DrawLine(p, p1.x, p1.y, p2.x, p2.y, drawMode);
+    DrawLine(p, p1.x, p1.y, p4.x, p4.y, drawMode);
+    DrawLine(p, p3.x, p3.y, p2.x, p2.y, drawMode);
+    DrawLine(p, p3.x, p3.y, p4.x, p4.y, drawMode);
+}
+
 void Window::DrawCircle(uint32_t p, int cx, int cy, int radius, DrawMode drawMode)
 {
     auto drawLine = [&](int sx, int ex, int y)
@@ -307,6 +345,34 @@ void Window::DrawCircle(uint32_t p, int cx, int cy, int radius, DrawMode drawMod
         int px = (int)std::sqrt((r2 - py * py) + 0.5);
         int y = cy + py;
         drawLine(cx - px, cx + px, y);
+    }
+}
+
+void Window::DrawCircleOutline(uint32_t p, int cx, int cy, int radius, DrawMode drawMode)
+{
+    auto drawPixels = [&](int x, int y)
+    {
+        SetPixel(p, cx+x, cy+y, drawMode); 
+        SetPixel(p, cx-x, cy+y, drawMode); 
+        SetPixel(p, cx+x, cy-y, drawMode); 
+        SetPixel(p, cx-x, cy-y, drawMode); 
+        SetPixel(p, cx+y, cy+x, drawMode); 
+        SetPixel(p, cx-y, cy+x, drawMode); 
+        SetPixel(p, cx+y, cy-x, drawMode); 
+        SetPixel(p, cx-y, cy-x, drawMode); 
+    };
+    float t1 = radius / 16;
+    int x = radius, y = 0;
+    while(y < x)
+    {
+        drawPixels(x, y);
+        y++;
+        t1 += y;
+        if(t1 >= x)
+        {
+            t1 -= x;
+            x--;
+        }
     }
 }
 
@@ -344,6 +410,13 @@ void Window::DrawTriangle(uint32_t p, int x1, int y1, int x2, int y2, int x3, in
         start += far;
         end += (y < y2) ? upper : low;
     }
+}
+
+void Window::DrawTriangleOutline(uint32_t p, int x1, int y1, int x2, int y2, int x3, int y3, DrawMode drawMode)
+{
+    DrawLine(p, x1, y1, x2, y2, drawMode);
+    DrawLine(p, x1, y1, x3, y3, drawMode);
+    DrawLine(p, x2, y2, x3, y3, drawMode);
 }
 
 void Window::DrawSprite(Sprite& sprite, Transform& transform, DrawMode drawMode)
@@ -470,7 +543,13 @@ void Window::DrawText(int x, int y, const std::string& text, int size, uint32_t 
     for(auto& c : text)
     {
         DrawCharacter(x + (int)sx, y + (int)sy, c, size, color, drawMode);
-        char_size(c, sx, sy, size, size);
+        if(c == '\n')
+        {
+            sy += (FONT_HEIGHT + 1) * size;
+            sx = 0;
+        }
+        else
+            sx += char_size(c, size);
     }
 }
 
@@ -486,7 +565,7 @@ void Window::DrawCharacter(DstRect dst, const char c, uint32_t color, DrawMode d
         {
             int ox = int(x / scale_x);
             int oy = int(y / scale_y);
-            if(font_data[(int)c - 32][oy] & (1 << (ox)))
+            if(font_data[(int)c - 32][oy] & (1 << ox))
             {
                 SetPixel(color, (int)(dst.sx + (FONT_WIDTH * scale_x - x)), (int)(dst.sy + (FONT_HEIGHT * scale_y - y)), drawMode);        
             }
@@ -498,16 +577,46 @@ void Window::DrawText(DstRect dst, const std::string& text, uint32_t color, Draw
     if(dst.ex == dst.sx || dst.sy == dst.ey || text.empty()) return;
     if(dst.ex < dst.sx) std::swap(dst.ex, dst.sx);
     if(dst.ey < dst.sy) std::swap(dst.ey, dst.sy);
-    float sx = 0, sy = FONT_HEIGHT;
-    string_size(text, 1, 1, sx, sy);
-    float scale_x = (dst.ex - dst.sx) / sx;
-    float scale_y = (dst.ey - dst.sy) / sy;
-    sx = dst.sx; sy = dst.sy;
+    float scale_x = (dst.ex - dst.sx) / string_size_x(text, 1);
+    float scale_y = (dst.ey - dst.sy) / string_size_y(text, 1);
+    float sx = dst.sx, sy = dst.sy;
     for(auto c : text)
     {
         DrawCharacter({sx, sy, sx + scale_x * FONT_WIDTH, sy + scale_y * FONT_HEIGHT}, c, color, drawMode);
-        char_size(c, sx, sy, scale_x, scale_y);
+        if(c == '\n')
+        {
+            sy += (FONT_HEIGHT + 1) * scale_y;
+            sx = dst.sx;
+        }
+        else
+            sx += char_size(c, scale_x);
     }
+}
+
+Button::Button(const std::string& path)
+{
+    image = Sprite(path);
+}
+
+bool Button::clicked(int x, int y, bool clicked)
+{
+    return clicked && hover(x, y);
+}
+
+bool Button::hover(int x, int y)
+{
+    const int w = this->image.width * size;
+    const int h = this->image.height * size;
+    return (x < position.x + w * 0.5f && x > position.x - w * 0.5f && y < position.y + h * 0.5f && y > position.y - h * 0.5f);
+}
+
+void Button::render(Window& window, DrawMode drawMode)
+{
+    int x = (int)(position.x - image.width * 0.5f * size);
+    int y = (int)(position.y - image.height * 0.5f * size);
+    window.pixelMode = PixelMode::Mask;
+    window.DrawSprite(x, y, image, size, drawMode);
+    window.pixelMode = PixelMode::Normal;
 }
 
 #endif

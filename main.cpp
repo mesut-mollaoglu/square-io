@@ -95,7 +95,7 @@ struct Triangle : Shape
         cVertices[1].y + position.y, cVertices[2].x + position.x,
         cVertices[2].y + position.y, drawMode);
     }
-    void Rotate(float angle)
+    void Rotate(float angle) override
     {
         currentAngle += angle;
         cVertices[0] = rotate(currentAngle, vertices[0]);
@@ -226,7 +226,8 @@ struct pSystem
         if(bPause) return;
         for(auto& p : particles)
         {
-            switch(p.mode){
+            switch(p.mode)
+            {
                 case pMode::Replay:
                 {
                     if(p.distance_max <= 0.0f && p.frame_current % p.frame_max == 0)
@@ -277,7 +278,8 @@ struct pSystem
 
         particles.erase(std::remove_if(particles.begin(), particles.end(), [&](particle& p){return p.dead;}), particles.end());
     }
-    inline void Draw(Window& window, DrawMode drawMode = DrawMode::Normal){
+    inline void Draw(Window& window, DrawMode drawMode = DrawMode::Normal)
+    {
         if(!bPause)
             for(auto& p : particles)
                 switch(p.shape)
@@ -340,7 +342,8 @@ enum class GameState
     MainMenu,
     GameLoop,
     EndSuccess,
-    EndFail
+    EndFail,
+    Stats
 };
 
 uint32_t enemy_colors[8] = {
@@ -358,9 +361,20 @@ inline void TakeScreenShot(Window& window, const std::string& file)
     SDL_FreeSurface(surface);
 }
 
+struct Stats
+{
+    int SeedsCollected;
+    int EnemiesKilled;
+    int EnemiesSpawned;
+    int MissilesFired;
+    int MissilesHit;
+    int PlayerDeaths; 
+};
+
 class Game
 {
 private:
+    Stats stats;
     Window window;
     Player player;
     pSystem ps;
@@ -372,6 +386,8 @@ private:
     std::vector<seed> seeds;
     GameState currentState;
     int ss_count = 0;
+    Button start, retry, home, stat, back;
+    DataNode savefile;
 public:
     inline void Start()
     {
@@ -384,6 +400,29 @@ public:
         player = {5.0f, Rect(60, 60, 30, 30, 0xFF00FF00), 20};
 
         ps = pSystem(0, 0);
+
+        start = Button("assets\\start.png");
+        retry = Button("assets\\retry.png");
+        home = Button("assets\\home.png");
+        back = Button("assets\\back.png");
+        stat = Button("assets\\stats.png");
+        start.position = v2f(250, 400);
+        stat.position = v2f(550, 400);
+        back.position = v2f(700, 550);
+        retry.position = v2f(250, 400);
+        home.position = v2f(550, 400);
+
+        back.size = 5;
+        stat.size = start.size = retry.size = home.size = 10;
+
+        Deserialize(savefile, "datafile.txt");
+
+        stats.EnemiesKilled = GetPropertyInt(savefile, "Enemies->Killed");
+        stats.EnemiesSpawned = GetPropertyInt(savefile, "Enemies->Spawned");
+        stats.MissilesFired = GetPropertyInt(savefile, "Missiles->Fired");
+        stats.MissilesHit = GetPropertyInt(savefile, "Missiles->Hit");
+        stats.PlayerDeaths = GetPropertyInt(savefile, "Player Deaths");
+        stats.SeedsCollected = GetPropertyInt(savefile, "Seeds Collected");
 
         smoke.colors.push_back(0xFFD8D8D8);
         smoke.colors.push_back(0xFFB1B1B1);
@@ -483,6 +522,7 @@ public:
     }
     inline void SpawnEnemy(pShape shape, v2f start_pos)
     {
+        stats.EnemiesSpawned++;
         uint32_t color = enemy_colors[rand(0, 8)];
         enemies.push_back({
             6.0f, nullptr,
@@ -513,48 +553,77 @@ public:
     {
         switch(currentState)
         {
-            case GameState::MainMenu: MainMenu(keystates); break;
+            case GameState::MainMenu: MainMenu(keystates, mouseState); break;
             case GameState::GameLoop: GameLoop(keystates, mouseState); break;
-            case GameState::EndSuccess: EndSuccess(keystates); break;
-            case GameState::EndFail: EndFail(keystates); break;
+            case GameState::EndSuccess: EndSuccess(keystates, mouseState); break;
+            case GameState::EndFail: EndFail(keystates, mouseState); break;
+            case GameState::Stats: StatsScreen(mouseState); break;
         }
     }
-    inline void MainMenu(const uint8_t* keystates)
+    inline void MainMenu(const uint8_t* keystates, const MouseState& state)
     {
-        if(keystates[SDL_SCANCODE_RETURN])
+        if(start.clicked(state.x, state.y, state.buttons & SDL_BUTTON(1)))
         {
             Restart();
             currentState = GameState::GameLoop;
+        }
+        if(stat.clicked(state.x, state.y, state.buttons & SDL_BUTTON(1)))
+        {
+            currentState = GameState::Stats;
         }
         window.Clear(0xFFFFFFFF);
-        window.DrawRect(0xFF00FF00, 300, 300, 500, 500);
-        window.DrawText({100, 40, 700, 92}, "Press Enter to Play!", 0xFF000000);
+        start.render(window);
+        stat.render(window);
+        window.DrawText({150, 40, 650, 92}, "SQUARE-IO", 0xFF00FF00);
         window.Present();
     }
-    inline void EndSuccess(const uint8_t* keystates)
+    inline void StatsScreen(const MouseState& state)
     {
-        if(keystates[SDL_SCANCODE_RETURN])
+        if(back.clicked(state.x, state.y, state.buttons & SDL_BUTTON(1)))
+        {
+            currentState = GameState::MainMenu;
+        }
+        std::string str;
+        str += "Enemies Killed: " + std::to_string(stats.EnemiesKilled) + "\n";
+        str += "Enemies Spawned: " + std::to_string(stats.EnemiesSpawned) + "\n";
+        str += "Missiles Fired: " + std::to_string(stats.MissilesFired) + "\n";
+        str += "Missiles Hit: " + std::to_string(stats.MissilesHit) + "\n";
+        str += "Seeds Collected: " + std::to_string(stats.SeedsCollected) + "\n";
+        str += "Player Deaths: " + std::to_string(stats.PlayerDeaths) + "\n";
+        window.Clear(0xFFFFFFFF);
+        back.render(window);
+        window.DrawText({300, 20, 500, 80}, "STATS", 0xFF000000);
+        window.DrawText({150, 100, 700, 550}, str, 0xFF000000);
+        window.Present();
+    }
+    inline void EndSuccess(const uint8_t* keystates, const MouseState& state)
+    {
+        if(retry.clicked(state.x, state.y, state.buttons & SDL_BUTTON(1)))
         {
             Restart();
             currentState = GameState::GameLoop;
         }
-        if(keystates[SDL_SCANCODE_ESCAPE]) 
+        if(home.clicked(state.x, state.y, state.buttons & SDL_BUTTON(1))) 
             currentState = GameState::MainMenu;
         window.Clear(0xFFFFFFFF);
         window.DrawText({200, 40, 600, 92}, "Wanna Replay?", 0xFF000000);
+        home.render(window);
+        retry.render(window);
         window.Present();
     }
-    inline void EndFail(const uint8_t* keystates)
+    inline void EndFail(const uint8_t* keystates, const MouseState& state)
     {
-        if(keystates[SDL_SCANCODE_RETURN])
+        if(retry.clicked(state.x, state.y, state.buttons & SDL_BUTTON(1)))
         {
             Restart();
             currentState = GameState::GameLoop;
         }
-        if(keystates[SDL_SCANCODE_ESCAPE]) 
+        if(home.clicked(state.x, state.y, state.buttons & SDL_BUTTON(1))) 
             currentState = GameState::MainMenu;
         window.Clear(0xFFFFFFFF);
         window.DrawText({250, 40, 550, 92}, "Try Again...", 0xFF000000);
+        retry.render(window);
+        home.render(window);
         window.Present();
     }
     inline void GameLoop(const uint8_t* keystates, const MouseState& mouseState)
@@ -589,6 +658,7 @@ public:
 
         for(auto& m : missiles)
         {
+            stats.MissilesFired++;
             ps.position = m.triangle.position;
             ps.Generate(smoke, 6, pMode::Normal, pShape::Pixel,
             pBehaviour::Directional, 0.0f, 0.0f, 10);
@@ -616,6 +686,7 @@ public:
                     if(std::hypot(m.triangle.position.x - enemy.shape->position.x,
                         m.triangle.position.y - enemy.shape->position.y) < 30 * expRadius)
                     {
+                        stats.MissilesHit++;
                         enemy.health -= 10;
                         ExplodeMissile(m);
                     }
@@ -639,14 +710,15 @@ public:
                 SpawnMissile(enemy.shape->position, player.rect.position, 0xFFFF0000, 350.0f);
                 enemy.cooldown = 150;
             }
-                
+            
             enemy.cooldown--;
             
             if(enemy.health <= 0)
             {
+                stats.EnemiesKilled++;
                 kill.colors[0] = enemy.shape->color;
                 ps.position = enemy.shape->position;
-                ps.Generate(kill, 12, pMode::Normal, enemy.data,
+                ps.Generate(kill, 15, pMode::Normal, enemy.data,
                 pBehaviour::Directional, 0.0f, 70.0f, 65);
                 enemy.remove = true;
                 delete enemy.shape;
@@ -661,9 +733,10 @@ public:
             s.position.y < player.rect.position.y + player.rect.height * 0.5 &&
             s.position.y > player.rect.position.y - player.rect.height * 0.5 && !s.remove)
             {
-                player.rect.width += 3.0f;
-                player.rect.height += 3.0f;
-                player.velocity += 0.02f;
+                player.rect.width += 2.5f;
+                player.rect.height += 2.5f;
+                player.velocity += 0.01f;
+                stats.SeedsCollected++;
                 s.remove = true;
             }
         }
@@ -672,7 +745,10 @@ public:
             currentState = GameState::EndSuccess;
 
         if(player.health <= 0.0f)
+        {
             currentState = GameState::EndFail;
+            stats.PlayerDeaths++;
+        }
 
         enemies.erase(std::remove_if(enemies.begin(), enemies.end(), [](Enemy& e){return e.remove;}), enemies.end());
         missiles.erase(std::remove_if(missiles.begin(), missiles.end(), [](Missile& m){return m.remove;}), missiles.end());
@@ -718,12 +794,19 @@ public:
             const uint8_t* keystates = SDL_GetKeyboardState(NULL);
             state.buttons = SDL_GetMouseState(&state.x, &state.y);
             if(keystates[SDL_SCANCODE_P])
-                TakeScreenShot(window, "screenshots\\image_" + std::to_string(ss_count) + ".png");
+                TakeScreenShot(window, "screenshots\\image_" + std::to_string(ss_count++) + ".png");
             UpdateAndDraw(keystates, state);
         }
     }
     inline void End()
     {
+        savefile["Enemies"]["Killed"].SetNumber(stats.EnemiesKilled);
+        savefile["Enemies"]["Spawned"].SetNumber(stats.EnemiesSpawned);
+        savefile["Missiles"]["Fired"].SetNumber(stats.MissilesFired);
+        savefile["Missiles"]["Hit"].SetNumber(stats.MissilesHit);
+        savefile["Player Deaths"].SetNumber(stats.PlayerDeaths);
+        savefile["Seeds Collected"].SetNumber(stats.SeedsCollected);
+        Serialize(savefile, "datafile.txt");
         window.~Window();
     }
 };
