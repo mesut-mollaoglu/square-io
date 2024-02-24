@@ -172,7 +172,7 @@ struct particle
 
 struct pData
 {
-    DstRect rect;
+    rect rect;
     float size_max;
     float size_min;
     float angle_max;
@@ -353,10 +353,10 @@ uint32_t enemy_colors[8] = {
 
 inline void TakeScreenShot(Window& window, const std::string& file)
 {
-    const int w = window.width;
-    const int h = window.height;
+    const int w = window.GetWidth();
+    const int h = window.GetHeight();
     SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormat(0, w, h, 32, SDL_PIXELFORMAT_ABGR8888);
-    memcpy(surface->pixels, window.pixels, 4*w*h);
+    memcpy(surface->pixels, window.drawTargets[window.currentDrawTarget].data.data(), 4*w*h);
     IMG_SavePNG(surface, file.c_str());
     SDL_FreeSurface(surface);
 }
@@ -486,8 +486,8 @@ public:
         {
             seeds.push_back({
                 {
-                    rand(10.0f, window.width - 10.0f),
-                    rand(10.0f, window.height - 10.0f)
+                    rand(10.0f, window.GetWidth() - 10.0f),
+                    rand(10.0f, window.GetHeight() - 10.0f)
                 }, false
             });
         }
@@ -632,8 +632,8 @@ public:
         {
             SpawnEnemy((pShape)rand(0, 3), 
             {
-                rand(0.0f, (float)window.width),
-                rand(0.0f, (float)window.height)
+                rand(0.0f, (float)window.GetWidth()),
+                rand(0.0f, (float)window.GetHeight())
             });
         }
 
@@ -641,11 +641,11 @@ public:
 
         if(keystates[SDL_SCANCODE_W] && player.rect.position.y - player.rect.height * 0.5 - player.velocity > 0) 
             player.rect.position.y -= player.velocity;
-        if(keystates[SDL_SCANCODE_S] && player.rect.position.y + player.rect.height * 0.5 + player.velocity < window.height)
+        if(keystates[SDL_SCANCODE_S] && player.rect.position.y + player.rect.height * 0.5 + player.velocity < window.GetHeight())
             player.rect.position.y += player.velocity;
         if(keystates[SDL_SCANCODE_A] && player.rect.position.x - player.rect.width * 0.5 - player.velocity > 0)
             player.rect.position.x -= player.velocity;
-        if(keystates[SDL_SCANCODE_D] && player.rect.position.x + player.rect.width * 0.5 + player.velocity < window.width) 
+        if(keystates[SDL_SCANCODE_D] && player.rect.position.x + player.rect.width * 0.5 + player.velocity < window.GetWidth()) 
             player.rect.position.x += player.velocity;
 
         ps.Update(8);

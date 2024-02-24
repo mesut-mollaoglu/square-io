@@ -3,43 +3,42 @@
 
 #include "includes.h"
 
-inline float char_size(const char c, float size_x)
+inline float char_size(const char c, float size)
 {
-    switch(c)
-    {
-        case ' ': return (FONT_WIDTH + 2) * size_x;
-        case '\t': return TAB_SPACE * size_x;
-        default: return (FONT_WIDTH + 1) * size_x;
-    }
+    if(c == '\t')
+        return TAB_SPACE * size;
+    else
+        return (FONT_WIDTH + 1) * size;
 }
 
-inline float string_size_x(const std::string& text, float size_x)
+inline float string_size_x(const std::string& text, float size)
 {
     float max_size = 0, buff = 0;
     for (auto &c : text) 
     {
-	if (c == '\n') 
+	    if (c == '\n')
         { 
             max_size = std::max(max_size, buff); 
             buff = 0;
         }
-	else 
-    	    buff += char_size(c, size_x);
+	    else 
+        	buff += char_size(c, size);
     }
     max_size = std::max(max_size, buff);
     return max_size;
 }
 
-inline float string_size_y(const std::string& text, float size_y)
+inline float string_size_y(const std::string& text, float size)
 {
     int count = std::count(text.begin(), text.end(), '\n');
-    return count * size_y * (FONT_HEIGHT + 1) + FONT_HEIGHT;
+    return count * size * (FONT_HEIGHT + 1) + FONT_HEIGHT;
 }
 
 enum class DrawMode
 {
     Normal,
-    Periodic
+    Periodic,
+    Clamp
 };
 
 enum PixelMode
@@ -54,11 +53,11 @@ struct Sprite
     int width, height;
     Sprite() = default;
     Sprite(const std::string& path);
-    void SetPixel(uint32_t p, int x, int y);
-    uint32_t GetPixel(int x, int y);
+    void SetPixel(uint32_t color, int x, int y, DrawMode drawMode = DrawMode::Normal);
+    uint32_t GetPixel(int x, int y, DrawMode drawMode = DrawMode::Normal);
 };
 
-struct DstRect
+struct rect
 {
     float sx;
     float sy;
@@ -71,9 +70,9 @@ struct Window
     SDL_Window* window;
     SDL_Renderer* renderer;
     SDL_Texture* surface;
-    int width, height;
     std::string name;
-    uint32_t* pixels;
+    std::vector<Sprite> drawTargets;
+    int currentDrawTarget;
     bool bShouldClose;
     PixelMode pixelMode;
     void Init(std::string name, int width, int height);
@@ -82,28 +81,29 @@ struct Window
     void CreateSurface();
     void Clear(uint32_t color);
     void Present();
-    void SetPixel(uint32_t p, int x, int y, DrawMode drawMode = DrawMode::Normal);
+    int GetWidth();
+    int GetHeight();
+    void SetPixel(uint32_t color, int x, int y, DrawMode drawMode = DrawMode::Normal);
     uint32_t GetPixel(int x, int y, DrawMode drawMode = DrawMode::Normal);
-    void DrawLine(uint32_t p, int x0, int y0, int x1, int y1, DrawMode drawMode = DrawMode::Normal);
-    void DrawRect(uint32_t p, int sx, int sy, int ex, int ey, DrawMode drawMode = DrawMode::Normal);
-    void DrawRectOutline(uint32_t p, int sx, int sy, int ex, int ey, DrawMode drawMode = DrawMode::Normal);
-    void DrawRotatedRectOutline(uint32_t p, int sx, int sy, int ex, int ey, float rotation, DrawMode drawMode = DrawMode::Normal);
-    void DrawCircle(uint32_t p, int cx, int cy, int radius, DrawMode drawMode = DrawMode::Normal);
-    void DrawCircleOutline(uint32_t p, int cx, int cy, int radius, DrawMode drawMode = DrawMode::Normal);
-    void DrawTriangle(uint32_t p, int x1, int y1, int x2, int y2, int x3, int y3, DrawMode drawMode = DrawMode::Normal);
-    void DrawTriangleOutline(uint32_t p, int x1, int y1, int x2, int y2, int x3, int y3, DrawMode drawMode = DrawMode::Normal);
+    void DrawLine(uint32_t color, int x0, int y0, int x1, int y1, DrawMode drawMode = DrawMode::Normal);
+    void DrawRect(uint32_t color, int sx, int sy, int ex, int ey, DrawMode drawMode = DrawMode::Normal);
+    void DrawRectOutline(uint32_t color, int sx, int sy, int ex, int ey, DrawMode drawMode = DrawMode::Normal);
+    void DrawRotatedRectOutline(uint32_t color, int sx, int sy, int ex, int ey, float rotation, DrawMode drawMode = DrawMode::Normal);
+    void DrawCircle(uint32_t color, int cx, int cy, int radius, DrawMode drawMode = DrawMode::Normal);
+    void DrawCircleOutline(uint32_t color, int cx, int cy, int radius, DrawMode drawMode = DrawMode::Normal);
+    void DrawTriangle(uint32_t color, int x1, int y1, int x2, int y2, int x3, int y3, DrawMode drawMode = DrawMode::Normal);
+    void DrawTriangleOutline(uint32_t color, int x1, int y1, int x2, int y2, int x3, int y3, DrawMode drawMode = DrawMode::Normal);
     void DrawSprite(Sprite& sprite, Transform& transform, DrawMode drawMode = DrawMode::Normal);
-    void DrawSprite(int x, int y, Sprite& sprite, int size = 1, DrawMode drawMode = DrawMode::Normal);
-    void DrawSprite(int x, int y, DstRect dst, Sprite& sprite, int size = 1, DrawMode drawMode = DrawMode::Normal);
-    void DrawSprite(DstRect dst, Sprite& sprite, DrawMode drawMode = DrawMode::Normal);
-    void DrawSprite(DstRect dst, DstRect src, Sprite& sprite, DrawMode drawMode = DrawMode::Normal);
-    void DrawCharacter(int x, int y, const char c, int size = 1, uint32_t color = 0xFF000000, DrawMode drawMode = DrawMode::Normal);
-    void DrawCharacter(DstRect dst, const char c, uint32_t color = 0xFF000000, DrawMode drawMode = DrawMode::Normal);
-    void DrawText(int x, int y, const std::string& text, int size = 1, uint32_t color = 0xFF000000, DrawMode drawMode = DrawMode::Normal);
-    void DrawText(DstRect dst, const std::string& text, uint32_t color = 0xFF000000, DrawMode drawMode = DrawMode::Normal);
+    void DrawSprite(int x, int y, Sprite& sprite, float size = 1, DrawMode drawMode = DrawMode::Normal);
+    void DrawSprite(int x, int y, rect dst, Sprite& sprite, float size = 1, DrawMode drawMode = DrawMode::Normal);
+    void DrawSprite(rect dst, Sprite& sprite, DrawMode drawMode = DrawMode::Normal);
+    void DrawSprite(rect dst, rect src, Sprite& sprite, DrawMode drawMode = DrawMode::Normal);
+    void DrawCharacter(int x, int y, const char c, float size = 1, uint32_t color = 0xFF000000, DrawMode drawMode = DrawMode::Normal);
+    void DrawCharacter(rect dst, const char c, uint32_t color = 0xFF000000, DrawMode drawMode = DrawMode::Normal);
+    void DrawText(int x, int y, const std::string& text, float size = 1, uint32_t color = 0xFF000000, DrawMode drawMode = DrawMode::Normal);
+    void DrawText(rect dst, const std::string& text, uint32_t color = 0xFF000000, DrawMode drawMode = DrawMode::Normal);
     ~Window()
     {
-        delete pixels;
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
         SDL_DestroyTexture(surface);
@@ -115,7 +115,7 @@ struct Button
 {
     Sprite image;
     v2f position;
-    int size = 1;
+    float size = 1;
     Button() = default;
     Button(const std::string& path);
     bool clicked(int x, int y, bool clicked);
@@ -144,74 +144,7 @@ Sprite::Sprite(const std::string& path)
     converted = nullptr;
 }
 
-void Sprite::SetPixel(uint32_t p, int x, int y)
-{
-    if(x >= 0 && x < width && y >= 0 && y < height)
-        data[y * width + x] = p;
-    else
-        return;
-}
-
-uint32_t Sprite::GetPixel(int x, int y)
-{
-    if(x >= 0 && x < width && y >= 0 && y < height)
-        return data[y * width + x];
-    else
-        return 0x00000000;
-}
-
-void Window::Init(std::string name, int width, int height)
-{
-    CreateWindow(name, width, height);
-    CreateRenderer();
-    CreateSurface();
-}
-
-void Window::CreateWindow(std::string name, int width, int height)
-{
-    SDL_Init(SDL_INIT_EVERYTHING);
-    IMG_Init(IMG_INIT_PNG);
-    IMG_Init(IMG_INIT_JPG);
-    this->name = name;
-    this->width = width;
-    this->height = height;
-    window = SDL_CreateWindow(name.c_str(), SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, 0);
-    bShouldClose = false;
-    pixelMode = PixelMode::Normal;
-}
-
-void Window::CreateRenderer()
-{
-    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_PRESENTVSYNC | SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE);
-    SDL_RenderSetLogicalSize(renderer, width, height);
-}
-
-void Window::CreateSurface()
-{
-    surface = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, width, height);
-    pixels = new uint32_t[width * height];
-    memset(pixels, 0, 4 * width * height);
-}
-
-void Window::Clear(uint32_t color)
-{
-    for(int i = 0; i < width * height; i++)
-        pixels[i] = color;
-}
-
-void Window::Present()
-{
-    int pitch;
-    void* buffer;
-    SDL_LockTexture(surface, NULL, &buffer, &pitch);
-    memcpy(buffer, pixels, 4 * width * height);
-    SDL_UnlockTexture(surface);
-    SDL_RenderClear(renderer);
-    SDL_RenderCopy(renderer, surface, NULL, NULL);
-    SDL_RenderPresent(renderer);
-}
-
-void Window::SetPixel(uint32_t p, int x, int y, DrawMode drawMode)
+void Sprite::SetPixel(uint32_t color, int x, int y, DrawMode drawMode)
 {
     switch(drawMode)
     {
@@ -230,13 +163,10 @@ void Window::SetPixel(uint32_t p, int x, int y, DrawMode drawMode)
         }
         break;
     }
-    if(pixelMode == PixelMode::Mask)
-        if(((p >> 24) & 0xFF) == 0x00)
-            return;
-    pixels[width * y + x] = p;
+    data[width * y + x] = color;
 }
 
-uint32_t Window::GetPixel(int x, int y, DrawMode drawMode)
+uint32_t Sprite::GetPixel(int x, int y, DrawMode drawMode)
 {
     switch(drawMode)
     {
@@ -253,12 +183,93 @@ uint32_t Window::GetPixel(int x, int y, DrawMode drawMode)
             x += (x < 0) ? width : 0;
             y += (y < 0) ? height : 0;
         }
+        case DrawMode::Clamp:
+        {
+            x = std::clamp(x, 0, width - 1);
+            y = std::clamp(y, 0, height - 1);
+        }
         break;
     }
-    return pixels[width * y + x];
+    return data[width * y + x];
 }
 
-void Window::DrawLine(uint32_t p, int x0, int y0, int x1, int y1, DrawMode drawMode)
+void Window::Init(std::string name, int width, int height)
+{
+    CreateWindow(name, width, height);
+    CreateRenderer();
+    CreateSurface();
+}
+
+void Window::CreateWindow(std::string name, int width, int height)
+{
+    SDL_Init(SDL_INIT_EVERYTHING);
+    IMG_Init(IMG_INIT_PNG);
+    IMG_Init(IMG_INIT_JPG);
+    Sprite drawTarget;
+    drawTarget.width = width;
+    drawTarget.height = height;
+    drawTargets.push_back(std::move(drawTarget));
+    currentDrawTarget = 0;
+    window = SDL_CreateWindow(name.c_str(), SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, 0);
+    bShouldClose = false;
+    pixelMode = PixelMode::Normal;
+}
+
+void Window::CreateRenderer()
+{
+    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_PRESENTVSYNC | SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE);
+    SDL_RenderSetLogicalSize(renderer, GetWidth(), GetHeight());
+}
+
+void Window::CreateSurface()
+{
+    surface = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, GetWidth(), GetHeight());
+    drawTargets[currentDrawTarget].data.resize(GetWidth() * GetHeight());
+    memset(drawTargets[currentDrawTarget].data.data(), 0, 4 * GetWidth() * GetHeight());
+}
+
+void Window::Clear(uint32_t color)
+{
+    for(int i = 0; i < GetWidth() * GetHeight(); i++)
+        drawTargets[currentDrawTarget].data[i] = color;
+}
+
+void Window::Present()
+{
+    int pitch;
+    void* buffer;
+    SDL_LockTexture(surface, NULL, &buffer, &pitch);
+    memcpy(buffer, drawTargets[currentDrawTarget].data.data(), 4 * GetWidth() * GetHeight());
+    SDL_UnlockTexture(surface);
+    SDL_RenderClear(renderer);
+    SDL_RenderCopy(renderer, surface, NULL, NULL);
+    SDL_RenderPresent(renderer);
+}
+
+void Window::SetPixel(uint32_t color, int x, int y, DrawMode drawMode)
+{
+    if(pixelMode == PixelMode::Mask)
+        if((color >> 24 & 0xFF) == 00)
+            return;
+    drawTargets[currentDrawTarget].SetPixel(color, x, y, drawMode);
+}
+
+uint32_t Window::GetPixel(int x, int y, DrawMode drawMode)
+{
+    return drawTargets[currentDrawTarget].GetPixel(x, y, drawMode);
+}
+
+int Window::GetWidth()
+{
+    return drawTargets[currentDrawTarget].width;
+}
+
+int Window::GetHeight()
+{
+    return drawTargets[currentDrawTarget].height;
+}
+
+void Window::DrawLine(uint32_t color, int x0, int y0, int x1, int y1, DrawMode drawMode)
 {
     int dx = x1 - x0;
     int dy = y1 - y0;
@@ -279,7 +290,7 @@ void Window::DrawLine(uint32_t p, int x0, int y0, int x1, int y1, DrawMode drawM
                 y = dy < 0 ? y - 1 : y + 1;
                 d = d + 2 * (absdy - absdx); 
             }
-        SetPixel(p, x, y, drawMode);
+        SetPixel(color, x, y, drawMode);
       }
     } 
     else 
@@ -295,51 +306,51 @@ void Window::DrawLine(uint32_t p, int x0, int y0, int x1, int y1, DrawMode drawM
                 x = dx < 0 ? x - 1 : x + 1;
                 d = d + 2 * (absdx - absdy);
             }
-        SetPixel(p, x, y, drawMode);
+        SetPixel(color, x, y, drawMode);
         }
     }
 }
 
-void Window::DrawRect(uint32_t p, int sx, int sy, int ex, int ey, DrawMode drawMode)
+void Window::DrawRect(uint32_t color, int sx, int sy, int ex, int ey, DrawMode drawMode)
 {
     if(sx > ex) std::swap(ex, sx);
     if(sy > ey) std::swap(ey, sy);
     for(int x = sx; x < ex; x++)
         for(int y = sy; y < ey; y++)
-            SetPixel(p, x, y, drawMode);
+            SetPixel(color, x, y, drawMode);
 }
 
-void Window::DrawRectOutline(uint32_t p, int sx, int sy, int ex, int ey, DrawMode drawMode)
+void Window::DrawRectOutline(uint32_t color, int sx, int sy, int ex, int ey, DrawMode drawMode)
 {
-    DrawLine(p, sx, sy, sx, ey, drawMode);
-	DrawLine(p, sx, sy, ex, sy, drawMode);
-	DrawLine(p, ex, ey, sx, ey, drawMode);
-	DrawLine(p, ex, ey, ex, sy, drawMode);
+    DrawLine(color, sx, sy, sx, ey, drawMode);
+	DrawLine(color, sx, sy, ex, sy, drawMode);
+	DrawLine(color, ex, ey, sx, ey, drawMode);
+	DrawLine(color, ex, ey, ex, sy, drawMode);
 }
 
-void Window::DrawRotatedRectOutline(uint32_t p, int sx, int sy, int ex, int ey, float rotation, DrawMode drawMode)
+void Window::DrawRotatedRectOutline(uint32_t color, int sx, int sy, int ex, int ey, float rotation, DrawMode drawMode)
 {
     if(rotation == 0.0f)
     {
-        DrawRectOutline(p, sx, sy, ex, ey, drawMode);
+        DrawRectOutline(color, sx, sy, ex, ey, drawMode);
         return;
     }
     v2f p1 = rotate(rotation, v2f(sx, sy));
     v2f p2 = rotate(rotation, v2f(sx, ey));
     v2f p3 = rotate(rotation, v2f(ex, ey));
     v2f p4 = rotate(rotation, v2f(ex, sy));
-    DrawLine(p, p1.x, p1.y, p2.x, p2.y, drawMode);
-    DrawLine(p, p1.x, p1.y, p4.x, p4.y, drawMode);
-    DrawLine(p, p3.x, p3.y, p2.x, p2.y, drawMode);
-    DrawLine(p, p3.x, p3.y, p4.x, p4.y, drawMode);
+    DrawLine(color, p1.x, p1.y, p2.x, p2.y, drawMode);
+    DrawLine(color, p1.x, p1.y, p4.x, p4.y, drawMode);
+    DrawLine(color, p3.x, p3.y, p2.x, p2.y, drawMode);
+    DrawLine(color, p3.x, p3.y, p4.x, p4.y, drawMode);
 }
 
-void Window::DrawCircle(uint32_t p, int cx, int cy, int radius, DrawMode drawMode)
+void Window::DrawCircle(uint32_t color, int cx, int cy, int radius, DrawMode drawMode)
 {
     auto drawLine = [&](int sx, int ex, int y)
     {
         for(int x = sx; x < ex; x++) 
-            SetPixel(p, x, y, drawMode);
+            SetPixel(color, x, y, drawMode);
     };
     const int r2 = radius * radius;
     for(int py = -radius; py < radius; py++)
@@ -350,18 +361,18 @@ void Window::DrawCircle(uint32_t p, int cx, int cy, int radius, DrawMode drawMod
     }
 }
 
-void Window::DrawCircleOutline(uint32_t p, int cx, int cy, int radius, DrawMode drawMode)
+void Window::DrawCircleOutline(uint32_t color, int cx, int cy, int radius, DrawMode drawMode)
 {
     auto drawPixels = [&](int x, int y)
     {
-        SetPixel(p, cx+x, cy+y, drawMode); 
-        SetPixel(p, cx-x, cy+y, drawMode); 
-        SetPixel(p, cx+x, cy-y, drawMode); 
-        SetPixel(p, cx-x, cy-y, drawMode); 
-        SetPixel(p, cx+y, cy+x, drawMode); 
-        SetPixel(p, cx-y, cy+x, drawMode); 
-        SetPixel(p, cx+y, cy-x, drawMode); 
-        SetPixel(p, cx-y, cy-x, drawMode); 
+        SetPixel(color, cx+x, cy+y, drawMode); 
+        SetPixel(color, cx-x, cy+y, drawMode); 
+        SetPixel(color, cx+x, cy-y, drawMode); 
+        SetPixel(color, cx-x, cy-y, drawMode); 
+        SetPixel(color, cx+y, cy+x, drawMode); 
+        SetPixel(color, cx-y, cy+x, drawMode); 
+        SetPixel(color, cx+y, cy-x, drawMode); 
+        SetPixel(color, cx-y, cy-x, drawMode); 
     };
     float t1 = radius / 16;
     int x = radius, y = 0;
@@ -378,13 +389,13 @@ void Window::DrawCircleOutline(uint32_t p, int cx, int cy, int radius, DrawMode 
     }
 }
 
-void Window::DrawTriangle(uint32_t p, int x1, int y1, int x2, int y2, int x3, int y3, DrawMode drawMode)
+void Window::DrawTriangle(uint32_t color, int x1, int y1, int x2, int y2, int x3, int y3, DrawMode drawMode)
 {
     auto drawLine = [&](int sx, int ex, int y)
     {
         if(sx > ex) std::swap(sx, ex); 
         for(int x = sx; x < ex; x++)
-            SetPixel(p, x, y, drawMode);
+            SetPixel(color, x, y, drawMode);
     };
     if(y2 < y1) 
     {
@@ -414,11 +425,11 @@ void Window::DrawTriangle(uint32_t p, int x1, int y1, int x2, int y2, int x3, in
     }
 }
 
-void Window::DrawTriangleOutline(uint32_t p, int x1, int y1, int x2, int y2, int x3, int y3, DrawMode drawMode)
+void Window::DrawTriangleOutline(uint32_t color, int x1, int y1, int x2, int y2, int x3, int y3, DrawMode drawMode)
 {
-    DrawLine(p, x1, y1, x2, y2, drawMode);
-    DrawLine(p, x1, y1, x3, y3, drawMode);
-    DrawLine(p, x2, y2, x3, y3, drawMode);
+    DrawLine(color, x1, y1, x2, y2, drawMode);
+    DrawLine(color, x1, y1, x3, y3, drawMode);
+    DrawLine(color, x2, y2, x3, y3, drawMode);
 }
 
 void Window::DrawSprite(Sprite& sprite, Transform& transform, DrawMode drawMode)
@@ -453,57 +464,46 @@ void Window::DrawSprite(Sprite& sprite, Transform& transform, DrawMode drawMode)
     	}
 }
 
-void Window::DrawSprite(int x, int y, Sprite& sprite, int size, DrawMode drawMode)
+void Window::DrawSprite(int x, int y, Sprite& sprite, float size, DrawMode drawMode)
 {
-    if(size > 1)
-    {
-        for(int i = 0; i < sprite.width; i++)
-            for(int j = 0; j < sprite.height; j++)
-                for(int is = 0; is < size; is++)
-                    for(int js = 0; js < size; js++)
-                        SetPixel(sprite.GetPixel(i, j), x + i * size + is, y + j * size + js, drawMode);
-        return;
-    }
-    for(int i = 0; i < sprite.width; i++)
-        for(int j = 0; j < sprite.height; j++)
-            SetPixel(sprite.GetPixel(i, j), x + i, y + j, drawMode);
+    rect dst;
+    dst.sx = (float)x;
+    dst.sy = (float)y;
+    dst.ex = dst.sx + sprite.width * size;
+    dst.ey = dst.sy + sprite.height * size;
+    DrawSprite(dst, sprite, drawMode);
 }
 
-void Window::DrawSprite(int x, int y, DstRect dst, Sprite& sprite, int size, DrawMode drawMode)
+void Window::DrawSprite(int x, int y, rect src, Sprite& sprite, float size, DrawMode drawMode)
 {
-    if(dst.ex < dst.sx) std::swap(dst.ex, dst.sx);
-    if(dst.ey < dst.sy) std::swap(dst.ey, dst.sy);
-    if(size > 1)
-    {
-        for(int i = 0; i < dst.ex - dst.sx; i++)
-            for(int j = 0; j < dst.ey - dst.sy; j++)
-                for(int is = 0; is < size; is++)
-                    for(int js = 0; js < size; js++)
-                        SetPixel(sprite.GetPixel(i + dst.sx, j + dst.sy), x + i * size + is, y + j * size + js, drawMode);
-        return;
-    }
-    for(int i = 0; i < dst.ex - dst.sx; i++)
-        for(int j = 0; j < dst.ey - dst.sy; j++)
-            SetPixel(sprite.GetPixel(i + dst.sx, j + dst.sy), x + i, y + j, drawMode);
+    if(src.ex == src.sx || src.ey == src.sy) return;
+    if(src.ex < src.sx) std::swap(src.ex, src.sx);
+    if(src.ey < src.sy) std::swap(src.ey, src.sy);
+    rect dst;
+    dst.sx = (float)x;
+    dst.sy = (float)y;
+    dst.ex = dst.sx + src.ex - src.sx;
+    dst.ey = dst.sy + src.ey - src.sy;
+    DrawSprite(dst, src, sprite, drawMode);
 }
 
-void Window::DrawSprite(DstRect dst, Sprite& sprite, DrawMode drawMode)
+void Window::DrawSprite(rect dst, Sprite& sprite, DrawMode drawMode)
 {
     if(dst.ex == dst.sx || dst.ey == dst.sy) return;
     if(dst.ex < dst.sx) std::swap(dst.sx, dst.ex);
     if(dst.ey < dst.sy) std::swap(dst.sy, dst.ey);
     float scale_x = (dst.ex - dst.sx) / sprite.width;
     float scale_y = (dst.ey - dst.sy) / sprite.height;
-    for(float x = dst.sx; x < dst.ex; x++)
-        for(float y = dst.sy; y < dst.ey; y++)
+    for(float x = 0; x < dst.ex - dst.sx; x++)
+        for(float y = 0; y < dst.ey - dst.sy; y++)
         {
             int ox = int(x / scale_x + 0.5f);
             int oy = int(y / scale_y + 0.5f);
-            this->SetPixel(sprite.GetPixel(ox, oy), (int)x, (int)y, drawMode);
+            this->SetPixel(sprite.GetPixel(ox, oy), (int)(dst.sx + x), (int)(dst.sy + y), drawMode);
         }
 }
 
-void Window::DrawSprite(DstRect dst, DstRect src, Sprite& sprite, DrawMode drawMode)
+void Window::DrawSprite(rect dst, rect src, Sprite& sprite, DrawMode drawMode)
 {
     if(dst.ex == dst.sx || dst.ey == dst.sy || src.ex == src.sx || src.ey == src.sy) return;
     if(dst.ex < dst.sx) std::swap(dst.sx, dst.ex);
@@ -512,34 +512,26 @@ void Window::DrawSprite(DstRect dst, DstRect src, Sprite& sprite, DrawMode drawM
     if(src.ey < src.sy) std::swap(src.sy, src.ey);
     float scale_x = (dst.ex - dst.sx) / (src.ex - src.sx);
     float scale_y = (dst.ey - dst.sy) / (src.ey - src.sy);
-    for(float x = dst.sx; x < dst.ex; x++)
-        for(float y = dst.sy; y < dst.ey; y++)
+    for(float x = 0; x < dst.ex - dst.sx; x++)
+        for(float y = 0; y < dst.ey - dst.sy; y++)
         {
             int ox = int(x / scale_x + 0.5f);
             int oy = int(y / scale_y + 0.5f);
-            this->SetPixel(sprite.GetPixel(ox, oy), (int)x, (int)y, drawMode);
+            this->SetPixel(sprite.GetPixel(ox, oy), (int)(dst.sx + x), (int)(dst.sy + y), drawMode);
         }
 }
 
-void Window::DrawCharacter(int x, int y, const char c, int size, uint32_t color, DrawMode drawMode)
+void Window::DrawCharacter(int x, int y, const char c, float size, uint32_t color, DrawMode drawMode)
 {
-    if(size > 1)
-    {
-        for(int i = 0; i < FONT_HEIGHT; i++)
-            for(int j = 0; j < FONT_WIDTH; j++)
-                if(font_data[(int)c - 32][i] & (1 << j))
-                    for(int is = 0; is < size; is++)
-                        for(int js = 0; js < size; js++)
-                            SetPixel(color, x + (FONT_WIDTH - j) * size + js, y + (FONT_HEIGHT - i) * size + is, drawMode);
-        return;
-    }
-    for(int i = 0; i < FONT_HEIGHT; i++)
-        for(int j = 0; j < FONT_WIDTH; j++)
-            if(font_data[(int)c - 32][i] & (1 << j))
-                SetPixel(color, x + FONT_WIDTH - j, y + FONT_HEIGHT - i, drawMode);
+    rect dst;
+    dst.sx = (float)x;
+    dst.sy = (float)y;
+    dst.ex = dst.sx + char_size(c, size);
+    dst.ey = dst.sy + FONT_HEIGHT * size;
+    DrawCharacter(dst, c, color, drawMode);
 }
 
-void Window::DrawText(int x, int y, const std::string& text, int size, uint32_t color, DrawMode drawMode)
+void Window::DrawText(int x, int y, const std::string& text, float size, uint32_t color, DrawMode drawMode)
 {
     float sx = 0, sy = 0;
     for(auto& c : text)
@@ -551,11 +543,11 @@ void Window::DrawText(int x, int y, const std::string& text, int size, uint32_t 
             sx = 0;
         }
         else
-            sx += char_size(c, size);
+            sx += char_size(c, size) + 1;
     }
 }
 
-void Window::DrawCharacter(DstRect dst, const char c, uint32_t color, DrawMode drawMode)
+void Window::DrawCharacter(rect dst, const char c, uint32_t color, DrawMode drawMode)
 {
     if(dst.ex == dst.sx || dst.sy == dst.ey) return;
     if(dst.ex < dst.sx) std::swap(dst.ex, dst.sx);
@@ -574,7 +566,7 @@ void Window::DrawCharacter(DstRect dst, const char c, uint32_t color, DrawMode d
         }
 }
 
-void Window::DrawText(DstRect dst, const std::string& text, uint32_t color, DrawMode drawMode)
+void Window::DrawText(rect dst, const std::string& text, uint32_t color, DrawMode drawMode)
 {
     if(dst.ex == dst.sx || dst.sy == dst.ey || text.empty()) return;
     if(dst.ex < dst.sx) std::swap(dst.ex, dst.sx);
