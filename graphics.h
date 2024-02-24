@@ -323,9 +323,9 @@ void Window::DrawRect(uint32_t color, int sx, int sy, int ex, int ey, DrawMode d
 void Window::DrawRectOutline(uint32_t color, int sx, int sy, int ex, int ey, DrawMode drawMode)
 {
     DrawLine(color, sx, sy, sx, ey, drawMode);
-	DrawLine(color, sx, sy, ex, sy, drawMode);
-	DrawLine(color, ex, ey, sx, ey, drawMode);
-	DrawLine(color, ex, ey, ex, sy, drawMode);
+    DrawLine(color, sx, sy, ex, sy, drawMode);
+    DrawLine(color, ex, ey, sx, ey, drawMode);
+    DrawLine(color, ex, ey, ex, sy, drawMode);
 }
 
 void Window::DrawRotatedRectOutline(uint32_t color, int sx, int sy, int ex, int ey, float rotation, DrawMode drawMode)
