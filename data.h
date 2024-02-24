@@ -5,6 +5,7 @@
 
 #define FONT_WIDTH 8
 #define FONT_HEIGHT 13
+#define TAB_SPACE 18
 
 constexpr float pi = 3.141519265358979323846;
 
