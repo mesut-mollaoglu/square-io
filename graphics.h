@@ -16,13 +16,13 @@ inline float string_size_x(const std::string& text, float size)
     float max_size = 0, buff = 0;
     for (auto &c : text) 
     {
-	    if (c == '\n')
+        if (c == '\n')
         { 
             max_size = std::max(max_size, buff); 
             buff = 0;
         }
-	    else 
-        	buff += char_size(c, size);
+        else 
+            buff += char_size(c, size);
     }
     max_size = std::max(max_size, buff);
     return max_size;
@@ -323,9 +323,9 @@ void Window::DrawRect(uint32_t color, int sx, int sy, int ex, int ey, DrawMode d
 void Window::DrawRectOutline(uint32_t color, int sx, int sy, int ex, int ey, DrawMode drawMode)
 {
     DrawLine(color, sx, sy, sx, ey, drawMode);
-	DrawLine(color, sx, sy, ex, sy, drawMode);
-	DrawLine(color, ex, ey, sx, ey, drawMode);
-	DrawLine(color, ex, ey, ex, sy, drawMode);
+    DrawLine(color, sx, sy, ex, sy, drawMode);
+    DrawLine(color, ex, ey, sx, ey, drawMode);
+    DrawLine(color, ex, ey, ex, sy, drawMode);
 }
 
 void Window::DrawRotatedRectOutline(uint32_t color, int sx, int sy, int ex, int ey, float rotation, DrawMode drawMode)
@@ -456,12 +456,12 @@ void Window::DrawSprite(Sprite& sprite, Transform& transform, DrawMode drawMode)
     if (ex < sx) std::swap(ex, sx);
     if (ey < sy) std::swap(ey, sy);
     for (float i = sx; i < ex; i++)
-    	for (float j = sy; j < ey; j++)
+        for (float j = sy; j < ey; j++)
         {
-    		float ox, oy;
-    		transform.Backward(i, j, ox, oy);
-    		this->SetPixel(sprite.GetPixel((int)(ox+0.5f), (int)(oy+0.5f)), (int)i, (int)j, drawMode);
-    	}
+            float ox, oy;
+            transform.Backward(i, j, ox, oy);
+            this->SetPixel(sprite.GetPixel((int)(ox+0.5f), (int)(oy+0.5f)), (int)i, (int)j, drawMode);
+        }
 }
 
 void Window::DrawSprite(int x, int y, Sprite& sprite, float size, DrawMode drawMode)
