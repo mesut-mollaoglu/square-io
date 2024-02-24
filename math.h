@@ -292,13 +292,13 @@ Transform::Transform()
 
 void Transform::Rotate(float ang)
 {
-	matrix3x3f rotate = matrix3x3f(1.0);
+    matrix3x3f rotate = matrix3x3f(1.0);
     rotate.data[0][0] = cos(ang);
     rotate.data[1][0] = sin(ang);
     rotate.data[0][1] = -sin(ang);
     rotate.data[1][1] = cos(ang);
-	transform = transform * rotate;
-	invertMatrix = true;
+    transform = transform * rotate;
+    invertMatrix = true;
 }
 
 void Transform::Translate(float dx, float dy)
@@ -312,11 +312,11 @@ void Transform::Translate(float dx, float dy)
 
 void Transform::Scale(float sx, float sy)
 {
-   	matrix3x3f scale = matrix3x3f(1.0);
-   	scale.data[0][0] = sx;
+    matrix3x3f scale = matrix3x3f(1.0);
+    scale.data[0][0] = sx;
     scale.data[1][1] = sy;
-   	transform = transform * scale;
-   	invertMatrix = true;
+    transform = transform * scale;
+    invertMatrix = true;
 }
 
 void Transform::Reset()
@@ -329,27 +329,27 @@ void Transform::Reset()
 void Transform::Forward(float x, float y, float& ox, float& oy)
 {
     float oz;
-	ox = transform.data[0][0] * x + transform.data[1][0] * y + transform.data[2][0];
+    ox = transform.data[0][0] * x + transform.data[1][0] * y + transform.data[2][0];
     oy = transform.data[0][1] * x + transform.data[1][1] * y + transform.data[2][1];
     oz = transform.data[0][2] * x + transform.data[1][2] * y + transform.data[2][2];
-	ox /= (oz == 0 ? 1 : oz);
-	oy /= (oz == 0 ? 1 : oz);
+    ox /= (oz == 0 ? 1 : oz);
+    oy /= (oz == 0 ? 1 : oz);
 }
 
 void Transform::Backward(float x, float y, float& ox, float& oy)
 {
-	float oz;
+    float oz;
     ox = inverted.data[0][0] * x + inverted.data[1][0] * y + inverted.data[2][0];
     oy = inverted.data[0][1] * x + inverted.data[1][1] * y + inverted.data[2][1];
     oz = inverted.data[0][2] * x + inverted.data[1][2] * y + inverted.data[2][2];
-	ox /= (oz == 0 ? 1 : oz);
-	oy /= (oz == 0 ? 1 : oz);
+    ox /= (oz == 0 ? 1 : oz);
+    oy /= (oz == 0 ? 1 : oz);
 }
 
 void Transform::Invert()
 {
-	if(!invertMatrix) return;
-	inverted = transform.inverse();
+    if(!invertMatrix) return;
+    inverted = transform.inverse();
     invertMatrix = false;
 }
 
