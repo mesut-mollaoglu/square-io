@@ -7,6 +7,7 @@ struct DataNode
 {
     DataNode() = default;
     void SetString(const std::string& str, std::size_t index = 0);
+    void SetBool(const bool b, std::size_t index = 0);
     std::string GetString(std::size_t index = 0);
     template <class T> void SetNumber(const T n, std::size_t index = 0)
     {
@@ -115,7 +116,7 @@ inline void Deserialize(std::reference_wrapper<DataNode> node, const std::string
     }
 }
 
-inline std::vector<std::string> GetProperty(DataNode node, const std::string dir)
+inline std::vector<std::string> GetProperty(DataNode& node, const std::string dir)
 {
     std::reference_wrapper<DataNode> datanode = node;
     std::vector<std::string> dir_vec;
@@ -155,9 +156,19 @@ inline std::string GetString(DataNode& datanode, const std::string dir, std::siz
     return GetProperty(datanode, dir)[index];
 }
 
+inline bool GetBool(DataNode& datanode, const std::string dir, std::size_t index = 0)
+{
+    return GetProperty(datanode, dir)[index] == "true" ? true : false;
+}
+
 inline double GetDouble(DataNode& datanode, const std::string dir, std::size_t index = 0)
 {
     return std::stod(GetProperty(datanode, dir)[index].c_str());
+}
+
+inline float GetFloat(DataNode& datanode, const std::string dir, std::size_t index = 0)
+{
+    return std::stof(GetProperty(datanode, dir)[index].c_str());
 }
 
 inline int GetInt(DataNode& datanode, const std::string dir, std::size_t index = 0)
@@ -177,6 +188,11 @@ void DataNode::SetString(const std::string& str, std::size_t index)
         data.resize(index+1);
     }
     data[index] = str;
+}
+
+void DataNode::SetBool(const bool b, std::size_t index)
+{
+    SetString(b ? "true" : "false", index);
 }
 
 std::string DataNode::GetString(std::size_t index)
