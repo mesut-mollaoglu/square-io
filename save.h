@@ -115,7 +115,7 @@ inline void Deserialize(std::reference_wrapper<DataNode> node, const std::string
     }
 }
 
-inline std::string GetProperty(DataNode node, const std::string dir, std::size_t index = 0)
+inline std::vector<std::string> GetProperty(DataNode node, const std::string dir)
 {
     std::reference_wrapper<DataNode> datanode = node;
     std::vector<std::string> dir_vec;
@@ -145,19 +145,24 @@ inline std::string GetProperty(DataNode node, const std::string dir, std::size_t
         if(datanode.get().nodes.count(dir_vec[i]) != 0)
             datanode = datanode.get()[dir_vec[i]];
         else
-            return "0";
+            return {"0"};
     }
-    return datanode.get().GetString(index);
+    return datanode.get().data;
 }
 
-inline double GetPropertyDouble(DataNode& datanode, const std::string dir, std::size_t index = 0)
+inline std::string GetString(DataNode& datanode, const std::string dir, std::size_t index = 0)
 {
-    return std::stod(GetProperty(datanode, dir, index).c_str());
+    return GetProperty(datanode, dir)[index];
 }
 
-inline int GetPropertyInt(DataNode& datanode, const std::string dir, std::size_t index = 0)
+inline double GetDouble(DataNode& datanode, const std::string dir, std::size_t index = 0)
 {
-    return std::stoi(GetProperty(datanode, dir, index).c_str());
+    return std::stod(GetProperty(datanode, dir)[index].c_str());
+}
+
+inline int GetInt(DataNode& datanode, const std::string dir, std::size_t index = 0)
+{
+    return std::stoi(GetProperty(datanode, dir)[index].c_str());
 }
 
 #endif

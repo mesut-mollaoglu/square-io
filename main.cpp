@@ -371,6 +371,13 @@ struct Stats
     int PlayerDeaths; 
 };
 
+struct Captures
+{
+    int count;
+    std::string prefix;
+    std::string directory;
+};
+
 class Game
 {
 private:
@@ -385,7 +392,7 @@ private:
     std::vector<Missile> missiles;
     std::vector<seed> seeds;
     GameState currentState;
-    int ss_count = 0;
+    Captures captures;
     Button start, retry, home, stat, back;
     DataNode savefile;
 public:
@@ -417,12 +424,15 @@ public:
 
         Deserialize(savefile, "datafile.txt");
 
-        stats.EnemiesKilled = GetPropertyInt(savefile, "Enemies->Killed");
-        stats.EnemiesSpawned = GetPropertyInt(savefile, "Enemies->Spawned");
-        stats.MissilesFired = GetPropertyInt(savefile, "Missiles->Fired");
-        stats.MissilesHit = GetPropertyInt(savefile, "Missiles->Hit");
-        stats.PlayerDeaths = GetPropertyInt(savefile, "Player Deaths");
-        stats.SeedsCollected = GetPropertyInt(savefile, "Seeds Collected");
+        stats.EnemiesKilled = GetInt(savefile, "Enemies->Killed");
+        stats.EnemiesSpawned = GetInt(savefile, "Enemies->Spawned");
+        stats.MissilesFired = GetInt(savefile, "Missiles->Fired");
+        stats.MissilesHit = GetInt(savefile, "Missiles->Hit");
+        stats.PlayerDeaths = GetInt(savefile, "Player Deaths");
+        stats.SeedsCollected = GetInt(savefile, "Seeds Collected");
+        captures.count = GetInt(savefile, "Captures->Count");
+        captures.directory = GetString(savefile, "Captures->Directory");
+        captures.prefix = GetString(savefile, "Captures->Prefix");
 
         smoke.colors.push_back(0xFFD8D8D8);
         smoke.colors.push_back(0xFFB1B1B1);
@@ -794,7 +804,7 @@ public:
             const uint8_t* keystates = SDL_GetKeyboardState(NULL);
             state.buttons = SDL_GetMouseState(&state.x, &state.y);
             if(keystates[SDL_SCANCODE_P])
-                TakeScreenShot(window, "screenshots\\image_" + std::to_string(ss_count++) + ".png");
+                TakeScreenShot(window, captures.directory + captures.prefix + std::to_string(captures.count++) + ".png");
             UpdateAndDraw(keystates, state);
         }
     }
@@ -806,6 +816,9 @@ public:
         savefile["Missiles"]["Hit"].SetNumber(stats.MissilesHit);
         savefile["Player Deaths"].SetNumber(stats.PlayerDeaths);
         savefile["Seeds Collected"].SetNumber(stats.SeedsCollected);
+        savefile["Captures"]["Count"].SetNumber(captures.count);
+        savefile["Captures"]["Directory"].SetString(captures.directory);
+        savefile["Captures"]["Prefix"].SetString(captures.prefix);
         Serialize(savefile, "datafile.txt");
         window.~Window();
     }
