@@ -158,7 +158,7 @@ inline std::string GetString(DataNode& datanode, const std::string dir, std::siz
 
 inline bool GetBool(DataNode& datanode, const std::string dir, std::size_t index = 0)
 {
-    return GetProperty(datanode, dir)[index] == "true" ? true : false;
+    return GetProperty(datanode, dir)[index] == "true";
 }
 
 inline double GetDouble(DataNode& datanode, const std::string dir, std::size_t index = 0)
