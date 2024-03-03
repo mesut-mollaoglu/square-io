@@ -158,21 +158,23 @@ template <class T, std::size_t size> struct matrix
         for(int i = 0; i < size; i++)
         {
             buffer = temp.row(i);
+            const T div = buffer[i];
             for(int j = 0; j < size; j++)
             {
-                buffer[j] /= buffer[i];
-                inv.data[i][j] /= buffer[i];
+                buffer[j] /= div;
+                inv.data[i][j] /= div;
             }
             temp.set_row(i, buffer);
             for(int j = 0; j < size; j++)
             {
                 if(i != j)
                 {
+                    const T mul = temp.data[i][j];
                     sub_row = temp.row(j);
                     for(int k = 0; k < size; k++)
                     {
-                        sub_row[k] -= buffer[k] * temp.data[i][j];
-                        inv.data[j][k] -= temp.data[i][j] * inv.data[i][k];
+                        sub_row[k] -= buffer[k] * mul;
+                        inv.data[j][k] -= mul * inv.data[i][k];
                     }
                     temp.set_row(j, sub_row);
                 }
@@ -207,16 +209,18 @@ template <class T, std::size_t size> struct matrix
         for(int i = 0; i < size; i++)
         {
             buffer = temp.row(i);
+            const T div = buffer[i];
             for(int j = i; j < size; j++)
             {
-                buffer[j] /= buffer[i];
+                buffer[j] /= div;
             }
             for(int j = i+1; j < size; j++)
             {
+                const T mul = temp.data[i][j];
                 sub_row = temp.row(j);
                 for(int k = 0; k < size; k++)
                 {
-                    sub_row[k] -= buffer[k] * temp.data[i][j];
+                    sub_row[k] -= buffer[k] * mul;
                 }
                 temp.set_row(j, sub_row);
             }

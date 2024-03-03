@@ -38,14 +38,15 @@ struct Rect : Shape
     }
     void Draw(Window& window, DrawMode drawMode = DrawMode::Normal) override
     {
+        window.SetDrawMode(drawMode);
         if(currentAngle == 0)
-            window.DrawRect(color, position.x-width*0.5, position.y-height*0.5, position.x+width*0.5, position.y+height*0.5, drawMode);
+            window.DrawRect(color, position.x-width*0.5, position.y-height*0.5, position.x+width*0.5, position.y+height*0.5);
         else
         {
             window.DrawTriangle(color, vertices[0].x + position.x, vertices[0].y + position.y, vertices[1].x + position.x,
-            vertices[1].y + position.y, vertices[2].x + position.x, vertices[2].y + position.y, drawMode);
+            vertices[1].y + position.y, vertices[2].x + position.x, vertices[2].y + position.y);
             window.DrawTriangle(color, vertices[1].x + position.x, vertices[1].y + position.y, vertices[2].x + position.x,
-            vertices[2].y + position.y, vertices[3].x + position.x, vertices[3].y + position.y, drawMode);
+            vertices[2].y + position.y, vertices[3].x + position.x, vertices[3].y + position.y);
         }
     }
 };
@@ -66,7 +67,8 @@ struct Circle : Shape
     }
     void Draw(Window& window, DrawMode drawMode = DrawMode::Normal) override
     {
-        window.DrawCircle(color, position.x, position.y, radius, drawMode);
+        window.SetDrawMode(drawMode);
+        window.DrawCircle(color, position.x, position.y, radius);
     }
     void SetRotation(float angle) override
     {
@@ -76,31 +78,31 @@ struct Circle : Shape
 
 struct Triangle : Shape
 {
-    v2f vertices[3];
-    v2f cVertices[3];
+    v2f vertices[3], currVertices[3];
     Triangle() = default;
     Triangle(const v2f v1, const v2f v2, const v2f v3, v2f offset, uint32_t color) 
     {
-        cVertices[0] = vertices[0] = v1;
-        cVertices[1] = vertices[1] = v2;
-        cVertices[2] = vertices[2] = v3;
+        currVertices[0] = vertices[0] = v1;
+        currVertices[1] = vertices[1] = v2;
+        currVertices[2] = vertices[2] = v3;
         position = offset;
         this->color = color;
         currentAngle = 0;
     }
     void Draw(Window& window, DrawMode drawMode = DrawMode::Normal) override
     {
-        window.DrawTriangle(color, cVertices[0].x + position.x,
-        cVertices[0].y + position.y, cVertices[1].x + position.x,
-        cVertices[1].y + position.y, cVertices[2].x + position.x,
-        cVertices[2].y + position.y, drawMode);
+        window.SetDrawMode(drawMode);
+        window.DrawTriangle(color, currVertices[0].x + position.x,
+        currVertices[0].y + position.y, currVertices[1].x + position.x,
+        currVertices[1].y + position.y, currVertices[2].x + position.x,
+        currVertices[2].y + position.y);
     }
     void Rotate(float angle) override
     {
         currentAngle += angle;
-        cVertices[0] = rotate(currentAngle, vertices[0]);
-        cVertices[1] = rotate(currentAngle, vertices[1]);
-        cVertices[2] = rotate(currentAngle, vertices[2]);
+        currVertices[0] = rotate(currentAngle, vertices[0]);
+        currVertices[1] = rotate(currentAngle, vertices[1]);
+        currVertices[2] = rotate(currentAngle, vertices[2]);
     }
 };
 
@@ -110,6 +112,213 @@ enum class pShape
     Circle,
     Triangle,
     Pixel
+};
+
+enum class pMode
+{
+    Normal,
+    Replay
+};
+
+enum class pBehaviour
+{
+    Sinusoidal,
+    Directional
+};
+
+struct particle
+{
+    uint32_t color;
+    float rotation;
+    float size;
+    float velocity;
+    float gravity;
+    float maxDistance;
+    int currentFrame = 0;
+    int maxFrame;
+    bool dead;
+    pMode mode;
+    pShape shape;
+    pBehaviour behaviour;
+    v2f startPos;
+    v2f currentPos;
+};
+
+struct pData
+{
+    rect rect;
+    float maxSize;
+    float minSize;
+    float maxAngle;
+    float minAngle;
+    float maxSpeed;
+    float minSpeed;
+    std::vector<uint32_t> colors;
+};
+
+auto equilateral = [](Triangle& triangle, float size)
+{
+    const float m = 0.577350269f;
+    triangle.currVertices[0] = triangle.vertices[0] = v2f(0.0f, m * size);
+    triangle.currVertices[1] = triangle.vertices[1] = v2f(size * 0.5f, -m * size);
+    triangle.currVertices[2] = triangle.vertices[2] = v2f(-size * 0.5f, -m * size);
+};
+
+struct pSystem
+{
+    std::vector<particle> particles;
+    bool pause = false;
+    v2f position;
+    pSystem() = default;
+    pSystem(int x, int y) 
+    {
+        pause = true;
+        position.x = x;
+        position.y = y;
+    }
+    inline void Generate(pData& data, int size, pMode mode, pShape shape, pBehaviour behaviour, float gravity, float distance, int frame)
+    {
+        for(int i = 0; i < size; i++)
+        {
+            particles.push_back({
+                data.colors[rand(0, (int)data.colors.size())],
+                rand(data.minAngle, data.maxAngle),
+                rand(data.minSize, data.maxSize),
+                rand(data.minSpeed, data.maxSpeed),
+                gravity, distance, 0, frame,
+                false, mode, shape, behaviour,
+                {
+                    rand(data.rect.sx, data.rect.ex) + position.x,
+                    rand(data.rect.sy, data.rect.ey) + position.y
+                },
+            });
+            particles.back().currentPos = particles.back().startPos;
+        }
+    }
+    inline void Update(int replayAmount)
+    {
+        if(pause) return;
+        for(auto& p : particles)
+        {
+            switch(p.mode)
+            {
+                case pMode::Replay:
+                {
+                    if(p.maxDistance <= 0.0f && p.currentFrame % p.maxFrame == 0)
+                        p.currentPos = p.startPos;
+                    p.dead = (p.currentFrame == p.maxFrame * replayAmount);
+                }
+                break;
+                case pMode::Normal:
+                {
+                    p.dead = p.currentFrame > p.maxFrame;
+                }
+                break;
+            }
+
+            switch(p.behaviour)
+            {
+                case pBehaviour::Directional:
+                {
+                    p.currentPos.x += cos(p.rotation) * p.velocity;
+                    p.currentPos.y += sin(p.rotation) * p.velocity;
+                }
+                break;
+                case pBehaviour::Sinusoidal:
+                {
+                    p.currentPos.x += cos(p.rotation) * p.velocity;
+                    p.currentPos.y += sin(p.rotation) * p.velocity;
+                    p.currentPos.x += cos(p.currentFrame * 0.2f) * p.velocity;
+                    p.currentPos.y += sin(p.currentFrame * 0.2f) * p.velocity;
+                }
+                break;
+            }
+
+            p.currentFrame++;
+
+            float x = p.currentPos.x - p.startPos.x;
+            float y = p.currentPos.y - p.startPos.y;
+
+            if(p.maxDistance > 0.0f && std::hypot(x, y) > p.maxDistance)
+            {
+                if(p.mode != pMode::Normal)
+                    p.currentPos = p.startPos;
+                else
+                    p.dead = true;
+            }   
+                          
+            p.currentPos.y += p.gravity;
+        }
+
+        particles.erase(std::remove_if(particles.begin(), particles.end(), [&](particle& p){return p.dead;}), particles.end());
+    }
+    inline void Draw(Window& window, DrawMode drawMode = DrawMode::Normal)
+    {
+        if(!pause)
+            for(auto& p : particles)
+                switch(p.shape)
+                {
+                    case pShape::Rect:
+                    {
+                        Rect rect;
+                        rect.color = p.color;
+                        rect.height = rect.width = p.size;
+                        rect.position.x = p.currentPos.x;
+                        rect.position.y = p.currentPos.y;
+                        rect.Rotate(p.velocity);
+                        rect.Draw(window, drawMode);
+                    }
+                    break;
+                    case pShape::Circle:
+                    {
+                        Circle circle;
+                        circle.color = p.color;
+                        circle.radius = p.size;
+                        circle.position.x = p.currentPos.x;
+                        circle.position.y = p.currentPos.y;
+                        circle.Draw(window, drawMode);
+                    }
+                    break;
+                    case pShape::Triangle:
+                    {
+                        Triangle triangle;
+                        triangle.color = p.color;
+                        triangle.position.x = p.currentPos.x;
+                        triangle.position.y = p.currentPos.y;
+                        equilateral(triangle, p.size);
+                        triangle.Rotate(p.velocity);
+                        triangle.Draw(window, drawMode);
+                    }
+                    case pShape::Pixel: 
+                    {
+                        window.SetPixel(p.color, p.currentPos.x, p.currentPos.y);
+                    }
+                    break;
+                }
+    }
+};
+
+struct Mouse
+{
+    uint32_t buttons;
+    int x, y;
+};
+
+inline void TakeScreenShot(Window& window, const std::string& file)
+{
+    const int w = window.GetWidth();
+    const int h = window.GetHeight();
+    SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormat(0, w, h, 32, SDL_PIXELFORMAT_ABGR8888);
+    memcpy(surface->pixels, window.drawTargets[window.currentDrawTarget].data.data(), 4*w*h);
+    IMG_SavePNG(surface, file.c_str());
+    SDL_FreeSurface(surface);
+}
+
+struct Captures
+{
+    int count;
+    std::string prefix;
+    std::string dir;
 };
 
 struct Enemy
@@ -140,201 +349,10 @@ struct Missile
     bool remove;
 };
 
-enum class pMode
-{
-    Normal,
-    Replay
-};
-
-enum class pBehaviour
-{
-    Sinusoidal,
-    Directional
-};
-
-struct particle
-{
-    uint32_t color;
-    float rotation;
-    float size;
-    float velocity;
-    float gravity;
-    float distance_max;
-    int frame_current = 0;
-    int frame_max;
-    bool dead;
-    pMode mode;
-    pShape shape;
-    pBehaviour behaviour;
-    v2f pos_start;
-    v2f pos_current;
-};
-
-struct pData
-{
-    rect rect;
-    float size_max;
-    float size_min;
-    float angle_max;
-    float angle_min;
-    float speed_max;
-    float speed_min;
-    std::vector<uint32_t> colors;
-};
-
-auto equilateral = [](Triangle& triangle, float size)
-{
-    const float m = 0.577350269f;
-    triangle.cVertices[0] = triangle.vertices[0] = v2f(0.0f, m * size);
-    triangle.cVertices[1] = triangle.vertices[1] = v2f(size * 0.5f, -m * size);
-    triangle.cVertices[2] = triangle.vertices[2] = v2f(-size * 0.5f, -m * size);
-};
-
-struct pSystem
-{
-    std::vector<particle> particles;
-    bool bPause = false;
-    v2f position;
-    pSystem() = default;
-    pSystem(int x, int y) 
-    {
-        bPause = true;
-        position.x = x;
-        position.y = y;
-    }
-    inline void Generate(pData& data, int size, pMode mode, pShape shape, pBehaviour behaviour, float gravity, float distance, int frame)
-    {
-        for(int i = 0; i < size; i++)
-        {
-            particles.push_back({
-                data.colors[rand(0, (int)data.colors.size())],
-                rand(data.angle_min, data.angle_max),
-                rand(data.size_min, data.size_max),
-                rand(data.speed_min, data.speed_max),
-                gravity, distance, 0, frame,
-                false, mode, shape, behaviour,
-                {
-                    rand(data.rect.sx, data.rect.ex) + position.x,
-                    rand(data.rect.sy, data.rect.ey) + position.y
-                },
-            });
-            particles.back().pos_current = particles.back().pos_start;
-        }
-    }
-    inline void Update(int replayAmount)
-    {
-        if(bPause) return;
-        for(auto& p : particles)
-        {
-            switch(p.mode)
-            {
-                case pMode::Replay:
-                {
-                    if(p.distance_max <= 0.0f && p.frame_current % p.frame_max == 0)
-                        p.pos_current = p.pos_start;
-                    p.dead = (p.frame_current == p.frame_max * replayAmount);
-                }
-                break;
-                case pMode::Normal:
-                {
-                    p.dead = p.frame_current > p.frame_max;
-                }
-                break;
-            }
-
-            switch(p.behaviour)
-            {
-                case pBehaviour::Directional:
-                {
-                    p.pos_current.x += cos(p.rotation) * p.velocity;
-                    p.pos_current.y += sin(p.rotation) * p.velocity;
-                }
-                break;
-                case pBehaviour::Sinusoidal:
-                {
-                    p.pos_current.x += cos(p.rotation) * p.velocity;
-                    p.pos_current.y += sin(p.rotation) * p.velocity;
-                    p.pos_current.x += cos(p.frame_current * 0.2f) * p.velocity;
-                    p.pos_current.y += sin(p.frame_current * 0.2f) * p.velocity;
-                }
-                break;
-            }
-
-            p.frame_current++;
-
-            float x = p.pos_current.x - p.pos_start.x;
-            float y = p.pos_current.y - p.pos_start.y;
-
-            if(p.distance_max > 0.0f && std::hypot(x, y) > p.distance_max)
-            {
-                if(p.mode != pMode::Normal)
-                    p.pos_current = p.pos_start;
-                else
-                    p.dead = true;
-            }   
-                          
-            p.pos_current.y += p.gravity;
-        }
-
-        particles.erase(std::remove_if(particles.begin(), particles.end(), [&](particle& p){return p.dead;}), particles.end());
-    }
-    inline void Draw(Window& window, DrawMode drawMode = DrawMode::Normal)
-    {
-        if(!bPause)
-            for(auto& p : particles)
-                switch(p.shape)
-                {
-                    case pShape::Rect:
-                    {
-                        Rect rect;
-                        rect.color = p.color;
-                        rect.height = rect.width = p.size;
-                        rect.position.x = p.pos_current.x;
-                        rect.position.y = p.pos_current.y;
-                        rect.Rotate(p.velocity);
-                        rect.Draw(window, drawMode);
-                    }
-                    break;
-                    case pShape::Circle:
-                    {
-                        Circle circle;
-                        circle.color = p.color;
-                        circle.radius = p.size;
-                        circle.position.x = p.pos_current.x;
-                        circle.position.y = p.pos_current.y;
-                        circle.Draw(window, drawMode);
-                    }
-                    break;
-                    case pShape::Triangle:
-                    {
-                        Triangle triangle;
-                        triangle.color = p.color;
-                        triangle.position.x = p.pos_current.x;
-                        triangle.position.y = p.pos_current.y;
-                        equilateral(triangle, p.size);
-                        triangle.Rotate(p.velocity);
-                        triangle.Draw(window, drawMode);
-                    }
-                    case pShape::Pixel: 
-                    {
-                        window.SetPixel(p.color, p.pos_current.x,
-                        p.pos_current.y, drawMode);
-                    }
-                    break;
-                }
-    }
-};
-
 struct seed
 {
     v2f position;
     bool remove;
-};
-
-struct MouseState
-{
-    uint32_t buttons;
-    int x, y;
 };
 
 enum class GameState
@@ -351,16 +369,6 @@ uint32_t enemy_colors[8] = {
     0xFF0C1B59, 0xFF0000FF, 0xFFABCFC1, 0xFFD5C6AC
 };
 
-inline void TakeScreenShot(Window& window, const std::string& file)
-{
-    const int w = window.GetWidth();
-    const int h = window.GetHeight();
-    SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormat(0, w, h, 32, SDL_PIXELFORMAT_ABGR8888);
-    memcpy(surface->pixels, window.drawTargets[window.currentDrawTarget].data.data(), 4*w*h);
-    IMG_SavePNG(surface, file.c_str());
-    SDL_FreeSurface(surface);
-}
-
 struct Stats
 {
     int SeedsCollected;
@@ -369,13 +377,6 @@ struct Stats
     int MissilesFired;
     int MissilesHit;
     int PlayerDeaths; 
-};
-
-struct Captures
-{
-    int count;
-    std::string prefix;
-    std::string directory;
 };
 
 class Game
@@ -424,15 +425,15 @@ public:
 
         Deserialize(savefile, "datafile.txt");
 
-        stats.EnemiesKilled = GetInt(savefile, "Enemies->Killed");
-        stats.EnemiesSpawned = GetInt(savefile, "Enemies->Spawned");
-        stats.MissilesFired = GetInt(savefile, "Missiles->Fired");
-        stats.MissilesHit = GetInt(savefile, "Missiles->Hit");
-        stats.PlayerDeaths = GetInt(savefile, "Player Deaths");
-        stats.SeedsCollected = GetInt(savefile, "Seeds Collected");
-        captures.count = GetInt(savefile, "Captures->Count");
-        captures.directory = GetString(savefile, "Captures->Directory");
-        captures.prefix = GetString(savefile, "Captures->Prefix");
+        stats.EnemiesKilled = GetInt(savefile, GetDirectory("Enemies", "Killed"));
+        stats.EnemiesSpawned = GetInt(savefile, GetDirectory("Enemies", "Spawned"));
+        stats.MissilesFired = GetInt(savefile, GetDirectory("Missiles", "Fired"));
+        stats.MissilesHit = GetInt(savefile, GetDirectory("Missiles", "Hit"));
+        stats.PlayerDeaths = GetInt(savefile, GetDirectory("Player Deaths"));
+        stats.SeedsCollected = GetInt(savefile, GetDirectory("Seeds Collected"));
+        captures.count = GetInt(savefile, GetDirectory("Captures", "Count"));
+        captures.dir = GetString(savefile, GetDirectory("Captures", "Directory"));
+        captures.prefix = GetString(savefile, GetDirectory("Captures", "Prefix"));
 
         smoke.colors.push_back(0xFFD8D8D8);
         smoke.colors.push_back(0xFFB1B1B1);
@@ -442,8 +443,8 @@ public:
         smoke.colors.push_back(0xFFFFFFFF);
         smoke.rect.ex = smoke.rect.sx = 0;
         smoke.rect.ey = smoke.rect.sy = 0;
-        smoke.speed_max = 1;
-        smoke.speed_min = 0;
+        smoke.maxSpeed = 1;
+        smoke.minSpeed = 0;
 
         explosion.colors.push_back(0xFFD8D8D8);
         explosion.colors.push_back(0xFFB1B1B1);
@@ -457,24 +458,24 @@ public:
         explosion.colors.push_back(0xFF08E8FF);
         explosion.rect.ey = explosion.rect.ex = 5.0f;
         explosion.rect.sy = explosion.rect.sx = -5.0f;
-        explosion.angle_min = 0;
-        explosion.angle_max = 360;
-        explosion.size_min = 3;
-        explosion.size_max = 6;
-        explosion.speed_min = 4;
-        explosion.speed_max = 5;
+        explosion.minAngle = 0;
+        explosion.maxAngle = 360;
+        explosion.minSize = 3;
+        explosion.maxSize = 6;
+        explosion.minSpeed = 4;
+        explosion.maxSpeed = 5;
 
         kill.colors.resize(1);
         kill.rect.ey = kill.rect.ex = 25.0f;
         kill.rect.sy = kill.rect.sx = -25.0f;
-        kill.angle_min = 0;
-        kill.angle_max = 360;
-        kill.size_min = 6;
-        kill.size_max = 7;
-        kill.speed_min = 2;
-        kill.speed_max = 4;
+        kill.minAngle = 0;
+        kill.maxAngle = 360;
+        kill.minSize = 6;
+        kill.maxSize = 7;
+        kill.minSpeed = 2;
+        kill.maxSpeed = 4;
 
-        ps.bPause = false;
+        ps.pause = false;
 
         player.cooldown = 0;
 
@@ -559,25 +560,25 @@ public:
             break;
         };
     }
-    inline void UpdateAndDraw(const uint8_t* keystates, const MouseState& mouseState)
+    inline void UpdateAndDraw(const uint8_t* keyboard, const Mouse& mouse)
     {
         switch(currentState)
         {
-            case GameState::MainMenu: MainMenu(keystates, mouseState); break;
-            case GameState::GameLoop: GameLoop(keystates, mouseState); break;
-            case GameState::EndSuccess: EndSuccess(keystates, mouseState); break;
-            case GameState::EndFail: EndFail(keystates, mouseState); break;
-            case GameState::Stats: StatsScreen(mouseState); break;
+            case GameState::MainMenu: MainMenu(keyboard, mouse); break;
+            case GameState::GameLoop: GameLoop(keyboard, mouse); break;
+            case GameState::EndSuccess: EndSuccess(keyboard, mouse); break;
+            case GameState::EndFail: EndFail(keyboard, mouse); break;
+            case GameState::Stats: StatsScreen(mouse); break;
         }
     }
-    inline void MainMenu(const uint8_t* keystates, const MouseState& state)
+    inline void MainMenu(const uint8_t* keyboard, const Mouse& mouse)
     {
-        if(start.clicked(state.x, state.y, state.buttons & SDL_BUTTON(1)))
+        if(start.clicked(mouse.x, mouse.y, mouse.buttons & SDL_BUTTON(1)))
         {
             Restart();
             currentState = GameState::GameLoop;
         }
-        if(stat.clicked(state.x, state.y, state.buttons & SDL_BUTTON(1)))
+        if(stat.clicked(mouse.x, mouse.y, mouse.buttons & SDL_BUTTON(1)))
         {
             currentState = GameState::Stats;
         }
@@ -587,9 +588,9 @@ public:
         window.DrawText({150, 40, 650, 92}, "SQUARE-IO", 0xFF00FF00);
         window.Present();
     }
-    inline void StatsScreen(const MouseState& state)
+    inline void StatsScreen(const Mouse& mouse)
     {
-        if(back.clicked(state.x, state.y, state.buttons & SDL_BUTTON(1)))
+        if(back.clicked(mouse.x, mouse.y, mouse.buttons & SDL_BUTTON(1)))
         {
             currentState = GameState::MainMenu;
         }
@@ -606,14 +607,14 @@ public:
         window.DrawText({150, 100, 700, 550}, str, 0xFF000000);
         window.Present();
     }
-    inline void EndSuccess(const uint8_t* keystates, const MouseState& state)
+    inline void EndSuccess(const uint8_t* keyboard, const Mouse& mouse)
     {
-        if(retry.clicked(state.x, state.y, state.buttons & SDL_BUTTON(1)))
+        if(retry.clicked(mouse.x, mouse.y, mouse.buttons & SDL_BUTTON(1)))
         {
             Restart();
             currentState = GameState::GameLoop;
         }
-        if(home.clicked(state.x, state.y, state.buttons & SDL_BUTTON(1))) 
+        if(home.clicked(mouse.x, mouse.y, mouse.buttons & SDL_BUTTON(1))) 
             currentState = GameState::MainMenu;
         window.Clear(0xFFFFFFFF);
         window.DrawText({200, 40, 600, 92}, "Wanna Replay?", 0xFF000000);
@@ -621,14 +622,14 @@ public:
         retry.render(window);
         window.Present();
     }
-    inline void EndFail(const uint8_t* keystates, const MouseState& state)
+    inline void EndFail(const uint8_t* keyboard, const Mouse& mouse)
     {
-        if(retry.clicked(state.x, state.y, state.buttons & SDL_BUTTON(1)))
+        if(retry.clicked(mouse.x, mouse.y, mouse.buttons & SDL_BUTTON(1)))
         {
             Restart();
             currentState = GameState::GameLoop;
         }
-        if(home.clicked(state.x, state.y, state.buttons & SDL_BUTTON(1))) 
+        if(home.clicked(mouse.x, mouse.y, mouse.buttons & SDL_BUTTON(1))) 
             currentState = GameState::MainMenu;
         window.Clear(0xFFFFFFFF);
         window.DrawText({250, 40, 550, 92}, "Try Again...", 0xFF000000);
@@ -636,7 +637,7 @@ public:
         home.render(window);
         window.Present();
     }
-    inline void GameLoop(const uint8_t* keystates, const MouseState& mouseState)
+    inline void GameLoop(const uint8_t* keyboard, const Mouse& mouse)
     {
         while(enemies.size() < 4)
         {
@@ -649,20 +650,20 @@ public:
 
         player.cooldown--;
 
-        if(keystates[SDL_SCANCODE_W] && player.rect.position.y - player.rect.height * 0.5 - player.velocity > 0) 
+        if(keyboard[SDL_SCANCODE_W] && player.rect.position.y - player.rect.height * 0.5 - player.velocity > 0) 
             player.rect.position.y -= player.velocity;
-        if(keystates[SDL_SCANCODE_S] && player.rect.position.y + player.rect.height * 0.5 + player.velocity < window.GetHeight())
+        if(keyboard[SDL_SCANCODE_S] && player.rect.position.y + player.rect.height * 0.5 + player.velocity < window.GetHeight())
             player.rect.position.y += player.velocity;
-        if(keystates[SDL_SCANCODE_A] && player.rect.position.x - player.rect.width * 0.5 - player.velocity > 0)
+        if(keyboard[SDL_SCANCODE_A] && player.rect.position.x - player.rect.width * 0.5 - player.velocity > 0)
             player.rect.position.x -= player.velocity;
-        if(keystates[SDL_SCANCODE_D] && player.rect.position.x + player.rect.width * 0.5 + player.velocity < window.GetWidth()) 
+        if(keyboard[SDL_SCANCODE_D] && player.rect.position.x + player.rect.width * 0.5 + player.velocity < window.GetWidth()) 
             player.rect.position.x += player.velocity;
 
         ps.Update(8);
 
-        if(player.cooldown <= 0 && (mouseState.buttons & SDL_BUTTON(1)))
+        if(player.cooldown <= 0 && (mouse.buttons & SDL_BUTTON(1)))
         {
-            SpawnMissile(player.rect.position, v2f(mouseState.x, mouseState.y), 0xFF0000FF, 600.0f);
+            SpawnMissile(player.rect.position, v2f(mouse.x, mouse.y), 0xFF0000FF, 600.0f);
             player.cooldown = 20;
         }
 
@@ -787,7 +788,7 @@ public:
     }
     inline void Loop()
     {
-        while (!window.bShouldClose) 
+        while (!window.shouldClose) 
         {
             SDL_Event e;
             while (SDL_PollEvent(&e))
@@ -795,29 +796,29 @@ public:
                 switch (e.type) 
                 {
                     case SDL_QUIT:
-                        window.bShouldClose = true;
+                        window.shouldClose = true;
                     break;
                 }
             }
 
-            MouseState state;
-            const uint8_t* keystates = SDL_GetKeyboardState(NULL);
-            state.buttons = SDL_GetMouseState(&state.x, &state.y);
-            if(keystates[SDL_SCANCODE_P])
-                TakeScreenShot(window, captures.directory + captures.prefix + std::to_string(captures.count++) + ".png");
-            UpdateAndDraw(keystates, state);
+            Mouse mouse;
+            const uint8_t* keyboard = SDL_GetKeyboardState(NULL);
+            mouse.buttons = SDL_GetMouseState(&mouse.x, &mouse.y);
+            if(keyboard[SDL_SCANCODE_P])
+                TakeScreenShot(window, captures.dir + captures.prefix + std::to_string(captures.count++) + ".png");
+            UpdateAndDraw(keyboard, mouse);
         }
     }
     inline void End()
     {
-        savefile["Enemies"]["Killed"].SetNumber(stats.EnemiesKilled);
-        savefile["Enemies"]["Spawned"].SetNumber(stats.EnemiesSpawned);
-        savefile["Missiles"]["Fired"].SetNumber(stats.MissilesFired);
-        savefile["Missiles"]["Hit"].SetNumber(stats.MissilesHit);
-        savefile["Player Deaths"].SetNumber(stats.PlayerDeaths);
-        savefile["Seeds Collected"].SetNumber(stats.SeedsCollected);
-        savefile["Captures"]["Count"].SetNumber(captures.count);
-        savefile["Captures"]["Directory"].SetString(captures.directory);
+        SetNumber(savefile["Enemies"]["Killed"], stats.EnemiesKilled);
+        SetNumber(savefile["Enemies"]["Spawned"], stats.EnemiesSpawned);
+        SetNumber(savefile["Missiles"]["Fired"], stats.MissilesFired);
+        SetNumber(savefile["Missiles"]["Hit"], stats.MissilesHit);
+        SetNumber(savefile["Player Deaths"], stats.PlayerDeaths);
+        SetNumber(savefile["Seeds Collected"], stats.SeedsCollected);
+        SetNumber(savefile["Captures"]["Count"], captures.count);
+        savefile["Captures"]["Directory"].SetString(captures.dir);
         savefile["Captures"]["Prefix"].SetString(captures.prefix);
         Serialize(savefile, "datafile.txt");
         window.~Window();

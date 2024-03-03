@@ -13,8 +13,10 @@
 #include <cstdlib>
 #include <algorithm>
 #include <fstream>
+#include <sstream>
 #include <stack>
 #include <cassert>
+#include <chrono>
 #include "data.h"
 #include "math.h"
 #include "graphics.h"
