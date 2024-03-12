@@ -425,15 +425,15 @@ public:
 
         Deserialize(savefile, "datafile.txt");
 
-        stats.EnemiesKilled = GetInt(savefile, GetDirectory("Enemies", "Killed"));
-        stats.EnemiesSpawned = GetInt(savefile, GetDirectory("Enemies", "Spawned"));
-        stats.MissilesFired = GetInt(savefile, GetDirectory("Missiles", "Fired"));
-        stats.MissilesHit = GetInt(savefile, GetDirectory("Missiles", "Hit"));
-        stats.PlayerDeaths = GetInt(savefile, GetDirectory("Player Deaths"));
-        stats.SeedsCollected = GetInt(savefile, GetDirectory("Seeds Collected"));
-        captures.count = GetInt(savefile, GetDirectory("Captures", "Count"));
-        captures.dir = GetString(savefile, GetDirectory("Captures", "Directory"));
-        captures.prefix = GetString(savefile, GetDirectory("Captures", "Prefix"));
+        stats.EnemiesKilled = GetInt(savefile.GetProperty("Enemies->Killed")).value();
+        stats.EnemiesSpawned = GetInt(savefile.GetProperty("Enemies->Spawned")).value();
+        stats.MissilesFired = GetInt(savefile.GetProperty("Missiles->Fired")).value();
+        stats.MissilesHit = GetInt(savefile.GetProperty("Missiles->Hit")).value();
+        stats.PlayerDeaths = GetInt(savefile.GetProperty("Player Deaths")).value();
+        stats.SeedsCollected = GetInt(savefile.GetProperty("Seeds Collected")).value();
+        captures.count = GetInt(savefile.GetProperty("Captures->Count")).value();
+        captures.dir = GetString(savefile.GetProperty("Captures->Directory")).value();
+        captures.prefix = GetString(savefile.GetProperty("Captures->Prefix")).value();
 
         smoke.colors.push_back(0xFFD8D8D8);
         smoke.colors.push_back(0xFFB1B1B1);
@@ -811,13 +811,13 @@ public:
     }
     inline void End()
     {
-        SetNumber(savefile["Enemies"]["Killed"], stats.EnemiesKilled);
-        SetNumber(savefile["Enemies"]["Spawned"], stats.EnemiesSpawned);
-        SetNumber(savefile["Missiles"]["Fired"], stats.MissilesFired);
-        SetNumber(savefile["Missiles"]["Hit"], stats.MissilesHit);
-        SetNumber(savefile["Player Deaths"], stats.PlayerDeaths);
-        SetNumber(savefile["Seeds Collected"], stats.SeedsCollected);
-        SetNumber(savefile["Captures"]["Count"], captures.count);
+        savefile["Enemies"]["Killed"].SetNumber(stats.EnemiesKilled);
+        savefile["Enemies"]["Spawned"].SetNumber(stats.EnemiesSpawned);
+        savefile["Missiles"]["Fired"].SetNumber(stats.MissilesFired);
+        savefile["Missiles"]["Hit"].SetNumber(stats.MissilesHit);
+        savefile["Player Deaths"].SetNumber(stats.PlayerDeaths);
+        savefile["Seeds Collected"].SetNumber(stats.SeedsCollected);
+        savefile["Captures"]["Count"].SetNumber(captures.count);
         savefile["Captures"]["Directory"].SetString(captures.dir);
         savefile["Captures"]["Prefix"].SetString(captures.prefix);
         Serialize(savefile, "datafile.txt");

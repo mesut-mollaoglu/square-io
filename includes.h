@@ -16,6 +16,7 @@
 #include <sstream>
 #include <stack>
 #include <cassert>
+#include <optional>
 #include <chrono>
 #include "data.h"
 #include "math.h"
