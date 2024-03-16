@@ -175,14 +175,15 @@ inline void Deserialize(std::reference_wrapper<DataNode> node, const std::string
 inline std::optional<std::string> GetString(std::optional<DataNode> datanode, std::size_t index = 0)
 {
 #if defined NO_COLLISIONS
-    for(std::size_t i = 0, count = 0; i < datanode.value().data.size(); i++)
-        if(!datanode.value().data[i].name.has_value())
-            if(count++ == index)
-                return datanode.value().data[i].content;
-    return {};
+    if(datanode.has_value())
+        for(std::size_t i = 0, count = 0; i < datanode.value().data.size(); i++)
+            if(!datanode.value().data[i].name.has_value())
+                if(count++ == index)
+                    return datanode.value().data[i].content;
+    return std::nullopt;
 #else
     if(!datanode.has_value() || (datanode.has_value() && index >= datanode.value().data.size()))
-        return {};
+        return std::nullopt;
     else
         return datanode.value().data[index].content;
 #endif
@@ -190,13 +191,11 @@ inline std::optional<std::string> GetString(std::optional<DataNode> datanode, st
 
 inline std::optional<std::string> GetString(std::optional<DataNode> datanode, std::string name = "")
 {
-    if(!datanode.has_value())
-        return {};
-    if(!datanode.value().data.empty())
+    if(datanode.has_value() && !datanode.value().data.empty())
         for(auto& element : datanode.value().data)
             if(element.name.has_value() && element.name.value() == name)
                 return element.content;
-    return {};
+    return std::nullopt;
 }
 
 template <class DataType, class ArgType> inline std::optional<DataType> GetData(std::optional<DataNode> datanode, ArgType arg)
@@ -264,7 +263,7 @@ std::optional<std::reference_wrapper<DataNode>> DataNode::GetProperty(const std:
         if(datanode.get().nodes.count(subdir) != 0)
             datanode = datanode.get()[subdir];
         else
-            return {};
+            return std::nullopt;
     }
     return datanode;
 }
