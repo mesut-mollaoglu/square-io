@@ -6,21 +6,72 @@
 const std::string whitespaces = " \n\t\v\0";
 const std::string seperator = "->";
 
+template <typename T> inline std::optional<T> convert(const std::optional<std::string> str) {}
+template <> inline std::optional<double> convert<double>(const std::optional<std::string> str) 
+{return str.has_value() ? std::make_optional(std::stod(str.value().c_str())) : std::nullopt;}
+template <> inline std::optional<float> convert<float>(const std::optional<std::string> str) 
+{return str.has_value() ? std::make_optional(std::stof(str.value().c_str())) : std::nullopt;}
+template <> inline std::optional<int> convert<int>(const std::optional<std::string> str) 
+{return str.has_value() ? std::make_optional(std::stoi(str.value().c_str())) : std::nullopt;}
+template <> inline std::optional<bool> convert<bool>(const std::optional<std::string> str)
+{
+    if(str.has_value())
+    {
+        if(str.value() == "true") return true;
+        else if(str.value() == "false") return false;
+        else return std::nullopt;
+    }
+    return std::nullopt;
+}
+
+template <typename T> inline std::string convert(const T& data) {static_assert(std::is_arithmetic_v<T>); return std::to_string(data);}
+template <> inline std::string convert<bool>(const bool& data) {return data ? "true" : "false";}
+
+struct Container
+{
+    std::string content;
+    std::optional<std::string> name = std::nullopt;
+};
+
+auto ParseDirectory = [](const std::string dir)->std::vector<std::string>
+{
+    std::vector<std::string> directory;
+    std::string buffer;
+    auto ClearBuffer = [&]()
+    {   
+        directory.push_back(buffer);
+        buffer.clear();
+    };
+    std::size_t index = 0, next = dir.find_first_of(seperator, index);
+    while(index < dir.size() && next != std::string::npos)
+    {
+        directory.push_back(dir.substr(index, next - index));
+        index = next + seperator.size();
+        next = dir.find_first_of(seperator, index);
+    }
+    if(next == std::string::npos)
+        directory.push_back(dir.substr(index, dir.size() - index));
+    return directory;    
+};
+
 struct DataNode
 {
     DataNode() = default;
-    template <class T> void SetNumber(const T& data, std::size_t index = 0)
+    template <class DataType, class ArgType> inline void SetData(const DataType& data, ArgType arg)
     {
-        if(std::is_arithmetic_v<T>) SetString(std::to_string(data), index);
+        static_assert(std::is_arithmetic_v<DataType> || std::is_same_v<DataType, bool>);
+        static_assert(std::is_convertible_v<ArgType, std::string> || std::is_integral_v<ArgType>);
+        SetString(convert<DataType>(data), arg);
     }
-    std::optional<std::reference_wrapper<DataNode>> GetProperty(std::string dir);
+    std::optional<std::reference_wrapper<DataNode>> GetProperty(const std::string dir);
     void SetString(const std::string& str, std::size_t index = 0);
-    void SetBool(const bool data, std::size_t index = 0);
+    void SetString(const std::string& str, std::string name = "");
+    bool HasProperty(const std::string dir);
     void SetData(const std::string str);
     const std::string GetData() const;
     void ClearData();
     DataNode& operator[](const std::string& str);
-    std::vector<std::string> data;
+    std::vector<Container> data;
     std::unordered_map<std::string, DataNode> nodes;
 };
 
@@ -31,7 +82,7 @@ inline void Serialize(DataNode& node, const std::string& file)
     auto Indent = [](int count)->std::string
     {
         std::string res;
-        for(int i = 0; i < count; i++) res += '\t';
+        for(int index = 0; index < count; index++) res += '\t';
         return res;
     };
     auto AddBrackets = [](std::string str)->std::string
@@ -44,7 +95,7 @@ inline void Serialize(DataNode& node, const std::string& file)
         auto WriteNode = [&](std::pair<std::string, DataNode> p, auto& WriteRef) mutable -> void
         {
             const std::string name = AddBrackets(p.first) + '>';
-            const std::string data = '(' + AddBrackets(p.second.GetData()) + ')';
+            const std::string data = '{' + AddBrackets(p.second.GetData()) + '}';
             if(!p.second.nodes.empty())
             {
                 output << Indent(tabCount++) << '<' << name << '\n';
@@ -59,7 +110,7 @@ inline void Serialize(DataNode& node, const std::string& file)
         };
         WriteNode(p, WriteNode);
     };
-    if(!node.data.empty()) output << Indent(tabCount) << "(" << AddBrackets(node.GetData()) << ")" << "\n";
+    if(!node.data.empty()) output << Indent(tabCount) << '{' << AddBrackets(node.GetData()) << '}' << '\n';
     for(auto& p : node.nodes) Write(p);
     output.close();
 }
@@ -72,58 +123,49 @@ inline void Deserialize(std::reference_wrapper<DataNode> node, const std::string
     auto Trim = [&](const std::string& str) -> std::string
     {
         std::string res;
-        for(int i = 0; i < str.size(); ++i)
-            if(str[i] == '[')
+        for(std::size_t index = 0; index < str.size(); ++index)
+            if(str[index] == '[')
             {
-                int end = str.find_first_of(']', ++i);
-                res += str.substr(i, end - i);
-                i = end;
+                std::size_t end = str.find_first_of(']', ++index);
+                res += str.substr(index, end - index);
+                index = end;
             }
-            else if(whitespaces.find(str[i]) == std::string::npos)
-                res += str[i];
+            else if(whitespaces.find(str[index]) == std::string::npos)
+                res += str[index];
         return res;
     };
 
     std::ifstream input(file.c_str());
-    std::stringstream filedata;
-    filedata << input.rdbuf();
-    filedata.str(Trim(filedata.str()));
+    std::stringstream content;
+    content << input.rdbuf();
+    content.str(Trim(content.str()));
     input.close();
 
     std::string buffer;
-    for(int i = 0; i < filedata.str().size(); i++)
+    for(int index = 0; index < content.str().size(); index++)
     {
-        if(filedata.str()[i] == '<')
+        if(content.str()[index] == '<')
         {
-            bool close = false;
-            if(filedata.str()[++i] == '/')
-            {
-                close = true;
-                ++i;
-            }
-            while(filedata.str()[i] != '>')
-            {
-                buffer += filedata.str()[i];
-                ++i;
-            }
-            if(!close) 
+            std::size_t end = content.str().find_first_of('>', ++index);
+            bool close = content.str()[index] == '/';
+            index += (close ? 1 : 0);
+            buffer += content.str().substr(index, end - index);
+            index = end;
+            if(!close)
             {
                 std::reference_wrapper<DataNode> newNode = stack.empty() ? node.get()[buffer] : stack.top().first.get()[buffer];
                 stack.push(std::make_pair(newNode, buffer));
             }
-            else if(stack.top().second == buffer) 
+            else if(stack.top().second == buffer)
             {
                 stack.pop();
             }
             buffer.clear();
         }
-        else if(filedata.str()[i++] == '(')
+        else if(content.str()[index] == '{')
         {
-            while(filedata.str()[i] != ')')
-            {
-                buffer += filedata.str()[i];
-                ++i;
-            }
+            std::size_t end = content.str().find_first_of('}', ++index);
+            buffer += content.str().substr(index, end - index);
             stack.top().first.get().SetData(buffer);
             buffer.clear();
         }
@@ -132,46 +174,36 @@ inline void Deserialize(std::reference_wrapper<DataNode> node, const std::string
 
 inline std::optional<std::string> GetString(std::optional<DataNode> datanode, std::size_t index = 0)
 {
-    if(!datanode.has_value() || index >= datanode.value().data.size())
+#if defined NO_COLLISIONS
+    for(std::size_t i = 0, count = 0; i < datanode.value().data.size(); i++)
+        if(!datanode.value().data[i].name.has_value())
+            if(count++ == index)
+                return datanode.value().data[i].content;
+    return {};
+#else
+    if(!datanode.has_value() || (datanode.has_value() && index >= datanode.value().data.size()))
         return {};
     else
-        return datanode.value().data[index];
+        return datanode.value().data[index].content;
+#endif
 }
 
-inline std::optional<bool> GetBool(std::optional<DataNode> datanode, std::size_t index = 0)
+inline std::optional<std::string> GetString(std::optional<DataNode> datanode, std::string name = "")
 {
-    std::optional<std::string> str = GetString(datanode, index);
-    if(str.has_value())
-        return str.value() == "true";
-    else 
+    if(!datanode.has_value())
         return {};
+    if(!datanode.value().data.empty())
+        for(auto& element : datanode.value().data)
+            if(element.name.has_value() && element.name.value() == name)
+                return element.content;
+    return {};
 }
 
-inline std::optional<double> GetDouble(std::optional<DataNode> datanode, std::size_t index = 0)
+template <class DataType, class ArgType> inline std::optional<DataType> GetData(std::optional<DataNode> datanode, ArgType arg)
 {
-    std::optional<std::string> str = GetString(datanode, index);
-    if(str.has_value())
-        return std::stod(str.value().c_str());
-    else 
-        return {};
-}
-
-inline std::optional<float> GetFloat(std::optional<DataNode> datanode, std::size_t index = 0)
-{
-    std::optional<std::string> str = GetString(datanode, index);
-    if(str.has_value())
-        return std::stof(str.value().c_str());
-    else 
-        return {};
-}
-
-inline std::optional<int> GetInt(std::optional<DataNode> datanode, std::size_t index = 0)
-{
-    std::optional<std::string> str = GetString(datanode, index);
-    if(str.has_value())
-        return std::stoi(str.value().c_str());
-    else 
-        return {};
+    static_assert(std::is_arithmetic_v<DataType> || std::is_same_v<DataType, bool>);
+    static_assert(std::is_convertible_v<ArgType, std::string> || std::is_integral_v<ArgType>);
+    return convert<DataType>(GetString(datanode, arg));
 }
 
 template <typename T, typename ...Args> const std::string GetDirectory(T base, Args... args) 
@@ -189,8 +221,33 @@ template <typename T, typename ...Args> const std::string GetDirectory(T base, A
 
 void DataNode::SetString(const std::string& str, std::size_t index)
 {
-    if(index >= data.size()) data.resize(index+1);
-    data[index] = str;
+#if defined NO_COLLISIONS
+    if(index < data.size())
+        for(std::size_t i = 0, count = 0; i < data.size(); i++)
+            if(!data[i].name.has_value())
+                if(count++ == index)
+                {
+                    data[i].content = str;
+                    return;
+                }
+    data.resize(index + 1);
+    data[index].content = str;
+#else
+    if(index >= data.size()) data.resize(index + 1);
+    data[index].content = str;
+#endif
+}
+
+void DataNode::SetString(const std::string& str, std::string name)
+{
+    if(!data.empty())
+        for(auto& element : data)
+            if(element.name.has_value() && element.name.value() == name)
+            {
+                element.content = str;
+                return;   
+            }
+    data.push_back(Container{str, name.empty() ? std::nullopt : std::make_optional(name)});
 }
 
 DataNode& DataNode::operator[](const std::string& str)
@@ -199,32 +256,10 @@ DataNode& DataNode::operator[](const std::string& str)
     return nodes[str];
 }
 
-std::optional<std::reference_wrapper<DataNode>> DataNode::GetProperty(std::string dir)
+std::optional<std::reference_wrapper<DataNode>> DataNode::GetProperty(const std::string dir)
 {
-    std::reference_wrapper<DataNode> datanode = std::ref(*this);
-    std::vector<std::string> directory;
-    std::string buffer;
-    auto ClearBuffer = [&]()
-    {   
-        directory.push_back(buffer);
-        buffer.clear();
-    };
-    for(int i = 0; i < dir.size(); ++i)
-    {
-        if(dir.substr(i, seperator.size()) == seperator)
-        {
-            ClearBuffer();
-            i+=seperator.size();
-        }
-        else if(i == dir.size() - 1)
-        {
-            buffer += dir[i];
-            ClearBuffer();
-            break;
-        }
-        buffer += dir[i];
-    }
-    for(auto& subdir : directory)
+    std::reference_wrapper<DataNode> datanode = *this;
+    for(auto& subdir : ParseDirectory(dir))
     {
         if(datanode.get().nodes.count(subdir) != 0)
             datanode = datanode.get()[subdir];
@@ -232,6 +267,19 @@ std::optional<std::reference_wrapper<DataNode>> DataNode::GetProperty(std::strin
             return {};
     }
     return datanode;
+}
+
+bool DataNode::HasProperty(const std::string dir)
+{
+    std::reference_wrapper<DataNode> datanode = *this;
+    for(auto& subdir : ParseDirectory(dir))
+    {
+        if(datanode.get().nodes.count(subdir) == 0)
+            return false;
+        else
+            datanode = datanode.get()[subdir];
+    }
+    return true;
 }
 
 void DataNode::ClearData()
@@ -243,26 +291,33 @@ void DataNode::ClearData()
     nodes.clear();
 }
 
-void DataNode::SetBool(const bool data, std::size_t index)
-{
-    SetString(data ? "true" : "false", index);
-}
-
 void DataNode::SetData(const std::string str)
 {
     data.clear();
-    std::string buffer;
     int index = 0;
+    Container buffer;
     while(index < str.size())
     {
-        if(index != str.size() - 1 && str[index] != ',')
-            buffer += str[index];
-        else
+        if(str[index] == '(')
         {
-            if(index == str.size() - 1) buffer += str[index];
-            data.push_back(buffer);
-            buffer.clear();
+            std::size_t end = str.find_first_of(')', ++index);
+            if(end == std::string::npos)
+                continue;
+            else
+            {
+                buffer.name = str.substr(index, end - index);
+                index = end;
+            }
         }
+        else if(index == str.size() - 1 || str[index] == ',')
+        {
+            if(index == str.size() - 1) buffer.content += str[index];
+            data.push_back(buffer);
+            buffer.content.clear();
+            buffer.name.reset();
+        }
+        else
+            buffer.content += str[index];
         index++;
     }
 }
@@ -270,10 +325,12 @@ void DataNode::SetData(const std::string str)
 const std::string DataNode::GetData() const
 {
     std::string res;
-    for(int i = 0; i < data.size(); i++)
+    for(int index = 0; index < data.size(); index++)
     {
-        res += data[i];
-        if(i != data.size() - 1) res += ",";
+        if(data[index].name.has_value())
+            res += '(' + data[index].name.value() + ')';
+        res += data[index].content;
+        if(index != data.size() - 1) res += ",";
     }
     return res;
 }
